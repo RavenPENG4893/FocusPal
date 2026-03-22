@@ -1,6 +1,6 @@
 # FocusPal
 
-[![CI](https://github.com/RavenPENG/FocusPal/actions/workflows/ci.yml/badge.svg)](https://github.com/RavenPENG/FocusPal/actions/workflows/ci.yml)
+[![CI](https://github.com/RavenPENG4893/FocusPal/actions/workflows/ci.yml/badge.svg)](https://github.com/RavenPENG4893/FocusPal/actions/workflows/ci.yml)
 
 A System-Aware Digital Life on Your Desktop.
 
