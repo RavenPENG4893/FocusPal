@@ -2,7 +2,8 @@
 // Coordinates AnimationStateMachine + PixelArtGenerator
 
 import { AnimationStateMachine } from './AnimationStateMachine'
-import { generateFrame, renderPixelGrid } from './PixelArtGenerator'
+import { generateFrame, renderPixelGrid, drawDeskClutter } from './PixelArtGenerator'
+import { drawSkinDeskItems } from './SkinSystem'
 import type { AnimationState } from './AnimationStateMachine'
 
 export class SpriteEngine {
@@ -11,6 +12,7 @@ export class SpriteEngine {
   private rafId: number = 0
   private scale: number
   private running: boolean = false
+  private _clutterLevel: number = 0
 
   constructor(canvas: HTMLCanvasElement, scale: number = 3) {
     this.scale = scale
@@ -39,6 +41,10 @@ export class SpriteEngine {
     this.stateMachine.onStateChange(cb)
   }
 
+  setClutterLevel(level: number) {
+    this._clutterLevel = level
+  }
+
   start() {
     if (this.running) return
     this.running = true
@@ -46,7 +52,19 @@ export class SpriteEngine {
     const loop = (now: number) => {
       if (!this.running) return
       this.stateMachine.update(now)
-      const grid = generateFrame(this.stateMachine.state, this.stateMachine.frame)
+      const state = this.stateMachine.state
+      const grid = generateFrame(state, this.stateMachine.frame)
+      // Skip clutter overlay during interactive memory states (they draw their own props)
+      const memAnimStates = ['sipping', 'crumpling', 'rummaging', 'drinking', 'stretching', 'eyerest',
+        'reading', 'tidying', 'napping', 'slacking', 'gaming', 'dancing', 'doodling']
+      if (!memAnimStates.includes(state)) {
+        // Draw skin-specific desk decorations
+        drawSkinDeskItems(grid, this.stateMachine.frame)
+        // Draw memory-based clutter on top
+        if (this._clutterLevel > 0) {
+          drawDeskClutter(grid, this._clutterLevel)
+        }
+      }
       if (logOnce) {
         // Count non-null pixels to verify sprite data
         let pixelCount = 0

@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { PhysicalPosition } from '@tauri-apps/api/dpi'
 import { SpriteEngine } from '../engine/SpriteEngine'
 import type { AnimationState } from '../engine/AnimationStateMachine'
 
 const props = defineProps<{
   state: AnimationState
+  clutterLevel?: number
 }>()
 
 const emit = defineEmits<{
@@ -16,43 +19,82 @@ const emit = defineEmits<{
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let engine: SpriteEngine | null = null
 
-onMounted(() => {
-  console.log('[CompanionCanvas] onMounted, canvasRef:', canvasRef.value)
-  if (!canvasRef.value) {
-    console.error('[CompanionCanvas] canvas ref is null!')
-    return
+// ── Drag vs Click detection ──
+let isDragging = false
+let dragStartX = 0
+let dragStartY = 0
+let hasMoved = false
+const DRAG_THRESHOLD = 3 // px moved before it counts as drag
+
+function onMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return
+  isDragging = true
+  hasMoved = false
+  dragStartX = e.screenX
+  dragStartY = e.screenY
+  e.preventDefault()
+}
+
+async function onMouseMove(e: MouseEvent) {
+  if (!isDragging) return
+  const dx = e.screenX - dragStartX
+  const dy = e.screenY - dragStartY
+  if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD && !hasMoved) return
+  hasMoved = true
+  dragStartX = e.screenX
+  dragStartY = e.screenY
+  try {
+    const win = getCurrentWindow()
+    const pos = await win.outerPosition()
+    await win.setPosition(new PhysicalPosition(pos.x + dx, pos.y + dy))
+  } catch {}
+}
+
+function onMouseUp(e: MouseEvent) {
+  if (!isDragging) return
+  isDragging = false
+  // If barely moved, treat as click
+  if (!hasMoved && e.button === 0) {
+    emit('click')
   }
-  engine = new SpriteEngine(canvasRef.value, 3)
-  console.log('[CompanionCanvas] canvas size:', canvasRef.value.width, canvasRef.value.height)
-  engine.onStateChange((s) => emit('stateChange', s))
-  engine.setState(props.state)
-  engine.start()
-  console.log('[CompanionCanvas] engine started')
-})
-
-onUnmounted(() => {
-  engine?.destroy()
-})
-
-watch(() => props.state, (newState) => {
-  engine?.setState(newState)
-})
-
-function onClick() {
-  emit('click')
 }
 
 function onRightClick(e: MouseEvent) {
   e.preventDefault()
   emit('rightclick')
 }
+
+onMounted(() => {
+  if (!canvasRef.value) return
+  engine = new SpriteEngine(canvasRef.value, 3)
+  engine.onStateChange((s) => emit('stateChange', s))
+  engine.setState(props.state)
+  engine.start()
+
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup', onMouseUp)
+})
+
+onUnmounted(() => {
+  engine?.destroy()
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('mouseup', onMouseUp)
+})
+
+watch(() => props.state, (newState) => {
+  engine?.setState(newState)
+})
+
+watch(() => props.clutterLevel, (level) => {
+  engine?.setClutterLevel(level ?? 0)
+})
 </script>
 
 <template>
   <canvas
     ref="canvasRef"
     class="companion-canvas"
-    @click="onClick"
+    @mousedown="onMouseDown"
     @contextmenu="onRightClick"
   />
 </template>
@@ -62,11 +104,6 @@ function onRightClick(e: MouseEvent) {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   cursor: grab;
-  transition: filter 0.3s;
-}
-
-.companion-canvas:hover {
-  filter: brightness(1.1);
 }
 
 .companion-canvas:active {

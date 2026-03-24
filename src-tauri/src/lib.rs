@@ -1,3 +1,6 @@
+mod db;
+mod llm;
+
 use serde::Serialize;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -82,7 +85,6 @@ fn get_battery_status() -> BatteryStatus {
             }
         }
     }
-    // Fallback for desktops without battery
     BatteryStatus {
         charge_percent: 100.0,
         is_charging: true,
@@ -110,11 +112,9 @@ pub fn run() {
     let key_counter = Arc::new(AtomicU64::new(0));
     let click_counter = Arc::new(AtomicU64::new(0));
 
-    // Clone for the rdev listener thread
     let key_clone = Arc::clone(&key_counter);
     let click_clone = Arc::clone(&click_counter);
 
-    // Spawn rdev listener in a dedicated thread
     std::thread::spawn(move || {
         let _ = rdev::listen(move |event| match event.event_type {
             rdev::EventType::KeyPress(_) => {
@@ -129,9 +129,15 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_geolocation::init())
         .manage(KeyCounter(key_counter))
         .manage(ClickCounter(click_counter))
+        .manage(llm::LlmProcess::new())
         .setup(|app| {
+            // Initialize SQLite database
+            let app_dir = app.path().app_data_dir().expect("Failed to get app data dir");
+            app.manage(db::AppDb::new(&app_dir));
+
             // Build tray menu
             let show_i =
                 MenuItem::with_id(app, "show_hide", "Show/Hide", true, None::<&str>)?;
@@ -143,7 +149,6 @@ pub fn run() {
 
             let menu = Menu::with_items(app, &[&show_i, &focus_i, &settings_i, &quit_i])?;
 
-            // Create tray icon
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
@@ -190,7 +195,38 @@ pub fn run() {
             get_system_stats,
             get_battery_status,
             get_input_activity,
+            llm::start_llm_server,
+            llm::stop_llm_server,
+            llm::llm_server_status,
+            db::config_get,
+            db::config_set,
+            db::insert_mood,
+            db::query_moods,
+            db::get_mood_stats,
+            db::export_moods,
+            db::insert_focus_session,
+            db::get_focus_stats,
+            db::get_last_mood_time,
+            db::insert_album_entry,
+            db::query_album,
+            db::get_total_xp,
+            db::insert_reminder_response,
+            db::get_reminder_stats,
+            db::insert_activity,
+            db::query_activities,
         ])
+        .on_window_event(|_window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                if let Some(process) = _window.app_handle().try_state::<llm::LlmProcess>() {
+                    if let Ok(mut guard) = process.0.lock() {
+                        if let Some(ref mut child) = *guard {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                        }
+                    }
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
