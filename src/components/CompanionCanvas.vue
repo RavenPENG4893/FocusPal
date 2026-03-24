@@ -8,6 +8,8 @@ import type { AnimationState } from '../engine/AnimationStateMachine'
 const props = defineProps<{
   state: AnimationState
   clutterLevel?: number
+  isDarkMode?: boolean
+  timePeriod?: string
 }>()
 
 const emit = defineEmits<{
@@ -87,6 +89,14 @@ watch(() => props.state, (newState) => {
 
 watch(() => props.clutterLevel, (level) => {
   engine?.setClutterLevel(level ?? 0)
+})
+
+watch(() => props.isDarkMode, (v) => {
+  engine?.setDarkMode(v ?? false)
+})
+
+watch(() => props.timePeriod, (v) => {
+  engine?.setTimePeriod(v ?? 'morning')
 })
 </script>
 

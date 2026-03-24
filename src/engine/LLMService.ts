@@ -118,8 +118,13 @@ function getEndpoint(): { url: string; headers: Record<string, string>; model: s
   return {
     url: `${LOCAL_URL}/v1/chat/completions`,
     headers: { 'Content-Type': 'application/json' },
-    model: 'qwen2.5-1.5b-instruct',
+    model: 'qwen3-4b',
   }
+}
+
+/** Strip Qwen3 <think>...</think> tags from response */
+export function stripThinkTags(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
 }
 
 /** Send a chat completion request (non-streaming) */
@@ -150,12 +155,13 @@ export async function chat(
   if (!choice) throw new Error('No response from LLM')
 
   return {
-    content: choice.message.content,
+    content: stripThinkTags(choice.message.content),
     usage: data.usage,
   }
 }
 
-/** Send a streaming chat request, calls onToken for each chunk */
+/** Send a streaming chat request, calls onToken for each chunk.
+ *  Automatically filters out Qwen3 <think>...</think> blocks. */
 export async function chatStream(
   messages: ChatMessage[],
   onToken: (token: string) => void,
@@ -185,6 +191,48 @@ export async function chatStream(
   const decoder = new TextDecoder()
   let buffer = ''
 
+  // Think-tag filter state: suppress tokens inside <think>...</think>
+  let inThink = false
+  let thinkBuf = ''
+
+  function filteredOnToken(token: string) {
+    // If we're inside a <think> block, buffer and don't emit
+    if (inThink) {
+      thinkBuf += token
+      if (thinkBuf.includes('</think>')) {
+        inThink = false
+        const afterThink = thinkBuf.split('</think>').pop() || ''
+        thinkBuf = ''
+        if (afterThink) onToken(afterThink)
+      }
+      return
+    }
+    // Check if this token starts a <think> block
+    const combined = thinkBuf + token
+    if (combined.includes('<think>')) {
+      inThink = true
+      const beforeThink = combined.split('<think>')[0]
+      thinkBuf = combined.split('<think>').slice(1).join('<think>')
+      if (beforeThink) onToken(beforeThink)
+      // Check if </think> is also in the same chunk
+      if (thinkBuf.includes('</think>')) {
+        inThink = false
+        const afterThink = thinkBuf.split('</think>').pop() || ''
+        thinkBuf = ''
+        if (afterThink) onToken(afterThink)
+      }
+      return
+    }
+    // Partial match detection: buffer trailing '<' characters
+    if (combined.endsWith('<') || combined.endsWith('<t') || combined.endsWith('<th') ||
+        combined.endsWith('<thi') || combined.endsWith('<thin') || combined.endsWith('<think')) {
+      thinkBuf = combined
+      return
+    }
+    thinkBuf = ''
+    onToken(token)
+  }
+
   try {
     while (true) {
       const { done, value } = await reader.read()
@@ -203,10 +251,12 @@ export async function chatStream(
         try {
           const parsed = JSON.parse(data)
           const delta = parsed.choices?.[0]?.delta?.content
-          if (delta) onToken(delta)
+          if (delta) filteredOnToken(delta)
         } catch {}
       }
     }
+    // Flush any remaining buffer that wasn't a think tag
+    if (thinkBuf && !inThink) onToken(thinkBuf)
   } finally {
     reader.cancel().catch(() => {})
   }

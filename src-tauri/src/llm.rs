@@ -30,7 +30,7 @@ pub fn start_llm_server(process: tauri::State<'_, LlmProcess>) -> Result<String,
 
     let models = models_dir();
     let server_exe = models.join("llama-server").join("llama-server.exe");
-    let model_path = models.join("qwen2.5-1.5b-instruct-q4_k_m.gguf");
+    let model_path = models.join("Qwen3-4B-Q4_K_M.gguf");
 
     if !server_exe.exists() {
         return Err(format!("llama-server.exe not found at {:?}", server_exe));
@@ -44,8 +44,9 @@ pub fn start_llm_server(process: tauri::State<'_, LlmProcess>) -> Result<String,
             "-m", &model_path.to_string_lossy(),
             "--host", "127.0.0.1",
             "--port", "8384",
-            "-ngl", "99",         // offload all layers to GPU
-            "-c", "2048",         // context length
+            "-ngl", "99",             // offload all layers to GPU
+            "-c", "4096",             // context length (Qwen3-4B supports more)
+            "--chat-template", "chatml", // Qwen3 uses ChatML format
         ])
         .spawn()
         .map_err(|e| format!("Failed to spawn llama-server: {}", e))?;

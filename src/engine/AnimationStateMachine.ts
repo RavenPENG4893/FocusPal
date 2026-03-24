@@ -35,6 +35,29 @@ export type AnimationState =
   | 'gaming'      // away: gaming with headphones
   | 'dancing'     // rare: spontaneous dance
   | 'doodling'    // rare: drawing/doodling
+  // Scene awareness reactions (V2)
+  | 'scene_coding'   // typing intensely with rubber duck
+  | 'scene_writing'  // reading/typing thoughtfully
+  | 'scene_design'   // painting on tiny easel
+  | 'scene_meeting'  // sitting up straight, taking notes
+  | 'scene_fidget'   // distraction: fidgeting anxiously
+  | 'scene_giveup'   // distraction >20min: gives up, lies down
+  | 'celebrate'      // build success: fireworks
+  | 'comforting'     // build error: comforting hug
+  | 'catch_orb'     // clipboard: catching a glowing orb
+  // Network fishing (V2)
+  | 'fishing_idle'       // no traffic: dozing off with rod
+  | 'fishing_light'      // light traffic: gentle bobbing
+  | 'fishing_moderate'   // moderate: alert, eyes on rod
+  | 'fishing_active'     // active: excited pulling
+  | 'fishing_heavy'      // heavy: frantic reeling
+  | 'fishing_trophy'     // trophy fish! celebration
+  | 'fishing_disconnect' // disconnected: broken cable
+  | 'fishing_upload'     // upload dominant: sending bird
+  // Window awareness (V2)
+  | 'dodge'       // dodging approaching window
+  | 'peek'        // peeking from behind covering window
+  | 'squeeze'     // squished between two windows
 
 export interface StateConfig {
   frames: number
@@ -77,6 +100,29 @@ export const STATE_CONFIGS: Record<AnimationState, StateConfig> = {
   gaming:      { frames: 4, frameInterval: 250, loop: true },
   dancing:     { frames: 8, frameInterval: 200, loop: false, nextState: 'happy' },
   doodling:    { frames: 6, frameInterval: 450, loop: true },
+  // Scene awareness (V2)
+  scene_coding:  { frames: 4, frameInterval: 200, loop: true },
+  scene_writing: { frames: 4, frameInterval: 400, loop: true },
+  scene_design:  { frames: 4, frameInterval: 350, loop: true },
+  scene_meeting: { frames: 4, frameInterval: 500, loop: true },
+  scene_fidget:  { frames: 4, frameInterval: 250, loop: true },
+  scene_giveup:  { frames: 4, frameInterval: 600, loop: true },
+  celebrate:     { frames: 8, frameInterval: 150, loop: false, nextState: 'happy' },
+  comforting:    { frames: 6, frameInterval: 350, loop: false, nextState: 'caring' },
+  catch_orb:     { frames: 6, frameInterval: 150, loop: false, nextState: 'idle' },
+  // Network fishing
+  fishing_idle:       { frames: 4, frameInterval: 500, loop: true },
+  fishing_light:      { frames: 4, frameInterval: 400, loop: true },
+  fishing_moderate:   { frames: 4, frameInterval: 250, loop: true },
+  fishing_active:     { frames: 4, frameInterval: 150, loop: true },
+  fishing_heavy:      { frames: 4, frameInterval: 100, loop: true },
+  fishing_trophy:     { frames: 8, frameInterval: 150, loop: false, nextState: 'happy' },
+  fishing_disconnect: { frames: 4, frameInterval: 300, loop: true },
+  fishing_upload:     { frames: 4, frameInterval: 250, loop: true },
+  // Window awareness
+  dodge:   { frames: 4, frameInterval: 150, loop: true },
+  peek:    { frames: 4, frameInterval: 400, loop: true },
+  squeeze: { frames: 4, frameInterval: 200, loop: true },
 }
 
 export class AnimationStateMachine {

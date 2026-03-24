@@ -22,3 +22,11 @@ battery = "0.7"
 rdev = "0.5"
 tauri-plugin-geolocation = "2"
 rusqlite = { version = "0.31", features = ["bundled"] }
+arboard = "3"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Threading",
+] }

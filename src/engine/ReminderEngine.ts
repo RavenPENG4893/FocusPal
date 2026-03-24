@@ -1,7 +1,9 @@
-// Smart Reminder Engine
+// Smart Reminder Engine (V2: Thompson Sampling adaptive intervals)
 // Manages water, stretch, and eye rest timers with DND support
+// Uses multi-armed bandit to learn optimal reminder intervals per type
 
 import { invoke } from '@tauri-apps/api/core'
+import { ThompsonBandit, type ReminderBanditType } from './ThompsonSampling'
 
 export type ReminderType = 'water' | 'stretch' | 'eyes'
 export type ReminderResponse = 'ok' | 'later' | 'skip'
@@ -32,6 +34,12 @@ export class ReminderEngine {
   private _dnd = false
   private _onReminder?: (type: ReminderType) => void
 
+  // Thompson Sampling bandit for adaptive intervals
+  readonly bandit = new ThompsonBandit()
+  private _useAdaptive = true // toggle for adaptive vs fixed
+  // Track which arm was used for the current reminder (for updating bandit)
+  private currentArm: Map<ReminderType, number> = new Map()
+
   constructor() {
     // Initialize default configs
     for (const type of ['water', 'stretch', 'eyes'] as ReminderType[]) {
@@ -48,9 +56,17 @@ export class ReminderEngine {
   }
 
   get dnd() { return this._dnd }
+  get useAdaptive() { return this._useAdaptive }
 
   setDND(enabled: boolean) {
     this._dnd = enabled
+  }
+
+  setUseAdaptive(enabled: boolean) {
+    this._useAdaptive = enabled
+    // Restart all timers with new strategy
+    this.stop()
+    this.start()
   }
 
   setEnabled(type: ReminderType, enabled: boolean) {
@@ -107,17 +123,29 @@ export class ReminderEngine {
       console.error('[Reminder] save error:', e)
     }
 
+    // Update Thompson Sampling bandit
+    if (this._useAdaptive) {
+      const armIndex = this.currentArm.get(type)
+      if (armIndex !== undefined) {
+        const accepted = response === 'ok'
+        await this.bandit.update(type as ReminderBanditType, armIndex, accepted)
+      }
+    }
+
     if (response === 'later') {
       // Snooze: reschedule after shorter delay
       this.scheduleNext(type, LATER_DELAY)
     } else {
-      // ok or skip: schedule next at normal interval
+      // ok or skip: schedule next using bandit-selected interval
       this.scheduleNext(type)
     }
   }
 
   /** Load settings from SQLite config */
   async loadSettings() {
+    // Load Thompson Sampling state
+    await this.bandit.load()
+
     for (const type of ['water', 'stretch', 'eyes'] as ReminderType[]) {
       try {
         const enabled = await invoke<string | null>('config_get', { key: `reminder_${type}_enabled` })
@@ -133,6 +161,14 @@ export class ReminderEngine {
         }
       } catch {}
     }
+
+    // Load adaptive toggle
+    try {
+      const adaptive = await invoke<string | null>('config_get', { key: 'reminder_adaptive' })
+      if (adaptive !== null) {
+        this._useAdaptive = adaptive === 'true'
+      }
+    } catch {}
   }
 
   /** Save a setting to SQLite */
@@ -147,7 +183,18 @@ export class ReminderEngine {
     const config = this.configs.get(type)
     if (!config || !config.enabled) return
 
-    const delay = overrideMs ?? config.intervalMs
+    let delay: number
+    if (overrideMs !== undefined) {
+      delay = overrideMs
+    } else if (this._useAdaptive) {
+      // Use Thompson Sampling to select interval
+      const { armIndex, intervalMin } = this.bandit.selectArm(type as ReminderBanditType)
+      this.currentArm.set(type, armIndex)
+      delay = intervalMin * 60 * 1000
+    } else {
+      delay = config.intervalMs
+    }
+
     const timer = window.setTimeout(() => {
       if (!this._dnd && config.enabled) {
         this.lastTriggered.set(type, Date.now())

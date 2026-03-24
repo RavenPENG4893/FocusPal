@@ -22,6 +22,22 @@ import { WhiteNoiseEngine, type SoundType } from './engine/WhiteNoise'
 import { AutonomousLife } from './engine/AutonomousLife'
 import { chat, type ChatMessage } from './engine/LLMService'
 import { loadSkinSetting, getActiveSkin, type SkinDef } from './engine/SkinSystem'
+import { SceneRecognitionEngine, SCENE_LABELS, type SceneType, type SceneState } from './engine/SceneRecognition'
+import { ClipboardGuardian } from './engine/ClipboardGuardian'
+import { NetworkFishingEngine, FISHING_ANIM_MAP, type FishingInfo } from './engine/NetworkFishing'
+import { WindowAwarenessEngine, type DodgeState } from './engine/WindowAwareness'
+import ClipboardPanel from './components/ClipboardPanel.vue'
+import OCCreatorPanel from './components/OCCreatorPanel.vue'
+import { DesktopArchaeologist } from './engine/DesktopArchaeologist'
+import { CollectibleEngine } from './engine/CollectibleSystem'
+import { JournalEngine } from './engine/JournalSystem'
+import AnalyticsDashboard from './components/AnalyticsDashboard.vue'
+import JournalPanel from './components/JournalPanel.vue'
+import CollectiblesPanel from './components/CollectiblesPanel.vue'
+import { FocusPredictionEngine } from './engine/FocusPrediction'
+import { CountdownSystem } from './engine/CountdownDays'
+import { initScreenLight, isDarkMode, onDarkModeChange, getLightCombo, getLightComment } from './engine/ScreenLight'
+import { CoupleEngine } from './engine/CoupleMode'
 
 // ── System data types ──
 
@@ -158,6 +174,13 @@ function onSoundsChanged(types: SoundType[]) {
 
 // Settings & Skin system
 const showSettings = ref(false)
+const showOCCreator = ref(false)
+
+// Track D: Analytics, Journal, Collectibles
+const showAnalytics = ref(false)
+const showJournal = ref(false)
+const showCollectibles = ref(false)
+const collectibleEngine = new CollectibleEngine()
 
 function onSkinChanged(skinId: string) {
   const skin = getActiveSkin()
@@ -172,10 +195,20 @@ function onNameChanged(name: string) {
 const autonomousLife = new AutonomousLife()
 let awayCheckTimer = 0
 
-autonomousLife.onActivity((state) => {
+autonomousLife.onActivity(async (state) => {
   // Only change state if we're actually away (don't override user-triggered states)
   if (autonomousLife.isAway) {
     currentState.value = state
+    // Try random collectible discovery during autonomous activities
+    const found = await collectibleEngine.tryRandomDiscovery()
+    if (found) {
+      const def = (await import('./engine/CollectibleSystem')).COLLECTIBLE_CATALOG.find(c => c.key === found)
+      if (def) {
+        mumbleText.value = `Found something: ${def.icon} ${def.name}!`
+        mumbleVisible.value = true
+        setTimeout(() => { mumbleVisible.value = false }, 6000)
+      }
+    }
   }
 })
 
@@ -197,7 +230,7 @@ async function onReturnFromAway() {
       const messages: ChatMessage[] = [
         {
           role: 'system',
-          content: `You are a cute desktop companion named ${companionName.value}. The user just came back after being away. Generate a short, warm greeting (1-2 sentences, casual and cute). Mention what you did while they were away. Keep it under 60 characters.`,
+          content: `/no_think\n你是FocusPal的伙伴角色，名叫${companionName.value}。用户刚回来，生成一句温暖的问候（1-2句，俏皮可爱）。提一下你等他时在做什么。控制在60字以内。`,
         },
         { role: 'user', content: summary },
       ]
@@ -212,6 +245,236 @@ async function onReturnFromAway() {
   mumbleVisible.value = true
   setTimeout(() => { mumbleVisible.value = false }, 6000)
 }
+
+// Scene Recognition system (V2)
+const sceneEngine = new SceneRecognitionEngine()
+const currentScene = ref<SceneType>('general')
+const sceneLabel = ref('')
+let sceneTimer = 0
+
+// Scene → animation mapping (only when not in higher-priority states)
+const SCENE_ANIM_MAP: Partial<Record<SceneType, AnimationState>> = {
+  coding: 'scene_coding',
+  writing: 'scene_writing',
+  design: 'scene_design',
+  meeting: 'scene_meeting',
+  communication: 'chatting',
+}
+
+sceneEngine.onSceneChange((state: SceneState) => {
+  currentScene.value = state.scene
+  sceneLabel.value = SCENE_LABELS[state.scene] || ''
+  if (!isHatched.value || isFocusing.value || autonomousLife.isAway) return
+  // Don't override higher-priority states
+  const noOverride = ['chatting', 'caring', 'happy', 'hatching', 'charging', 'unplugged',
+    'fullbattery', 'lowbattery', 'sweating', 'overloaded', 'cleaning',
+    'drinking', 'stretching', 'eyerest', 'celebrate', 'comforting',
+    'reading', 'tidying', 'daydreaming', 'napping', 'slacking', 'gaming', 'dancing', 'doodling']
+  if (noOverride.includes(currentState.value)) return
+
+  const anim = SCENE_ANIM_MAP[state.scene]
+  if (anim) {
+    currentState.value = anim
+  } else if (state.scene === 'general') {
+    // Return to idle for general scene
+    if (currentState.value.startsWith('scene_')) {
+      currentState.value = 'idle'
+    }
+  }
+})
+
+sceneEngine.onDistraction((escalation) => {
+  if (!isHatched.value || isFocusing.value || autonomousLife.isAway) return
+  if (escalation.level >= 4) {
+    currentState.value = 'scene_giveup'
+    if (escalation.message) {
+      mumbleText.value = escalation.message
+      mumbleVisible.value = true
+      setTimeout(() => { mumbleVisible.value = false }, 6000)
+    }
+  } else if (escalation.level >= 2) {
+    currentState.value = 'scene_fidget'
+    if (escalation.message) {
+      mumbleText.value = escalation.message
+      mumbleVisible.value = true
+      setTimeout(() => { mumbleVisible.value = false }, 5000)
+    }
+  } else if (escalation.level === 1) {
+    currentState.value = 'scene_fidget'
+  }
+})
+
+sceneEngine.onTitleEvent((event) => {
+  if (!isHatched.value || isFocusing.value) return
+  if (event === 'build_success') {
+    currentState.value = 'celebrate'
+    mumbleText.value = 'Build 成功了！🎉'
+    mumbleVisible.value = true
+    setTimeout(() => { mumbleVisible.value = false }, 4000)
+  } else if (event === 'build_error') {
+    currentState.value = 'comforting'
+    mumbleText.value = '没关系，debug 是日常~'
+    mumbleVisible.value = true
+    setTimeout(() => { mumbleVisible.value = false }, 4000)
+  }
+})
+
+// Clipboard Guardian (V2)
+const clipboardGuardian = new ClipboardGuardian()
+const showClipboard = ref(false)
+const clipboardCount = ref(0)
+let clipboardTimer = 0
+
+clipboardGuardian.onCatch(() => {
+  if (!isHatched.value) return
+  // Play catch animation (only if not in an important state)
+  const noOverride = ['chatting', 'caring', 'happy', 'hatching', 'charging', 'unplugged',
+    'fullbattery', 'lowbattery', 'sweating', 'overloaded', 'cleaning',
+    'drinking', 'stretching', 'eyerest', 'celebrate', 'comforting',
+    'reading', 'tidying', 'daydreaming', 'napping', 'slacking', 'gaming', 'dancing', 'doodling']
+  if (!noOverride.includes(currentState.value)) {
+    currentState.value = 'catch_orb'
+  }
+})
+
+clipboardGuardian.onCountChange((count) => {
+  clipboardCount.value = count
+})
+
+// Network Fishing (V2)
+const fishingEngine = new NetworkFishingEngine()
+const isFishing = ref(false)
+const fishingSpeedLabel = ref('')
+let fishingTimer = 0
+
+fishingEngine.onStateChange((info: FishingInfo) => {
+  if (!isFishing.value || !isHatched.value) return
+  fishingSpeedLabel.value = info.speedLabel
+  const anim = FISHING_ANIM_MAP[info.state]
+  if (anim) {
+    currentState.value = anim
+  }
+})
+
+fishingEngine.onTrophy(() => {
+  if (!isHatched.value) return
+  mumbleText.value = '钓到大鱼了！！🐟🎉'
+  mumbleVisible.value = true
+  setTimeout(() => { mumbleVisible.value = false }, 5000)
+})
+
+fishingEngine.onDisconnect((disconnected) => {
+  if (!isHatched.value || !isFishing.value) return
+  if (disconnected) {
+    mumbleText.value = '网断了...😵'
+    mumbleVisible.value = true
+    setTimeout(() => { mumbleVisible.value = false }, 4000)
+  } else {
+    mumbleText.value = '网回来了！继续钓~'
+    mumbleVisible.value = true
+    setTimeout(() => { mumbleVisible.value = false }, 3000)
+  }
+})
+
+function toggleFishing() {
+  isFishing.value = !isFishing.value
+  fishingEngine.enabled = isFishing.value
+  if (isFishing.value) {
+    fishingEngine.poll() // initial poll
+    currentState.value = 'fishing_idle'
+  } else {
+    currentState.value = 'idle'
+    fishingSpeedLabel.value = ''
+  }
+}
+
+// Window Awareness (V2)
+const windowEngine = new WindowAwarenessEngine()
+let windowTimer = 0
+
+const DODGE_ANIM_MAP: Record<string, AnimationState> = {
+  dodge: 'dodge',
+  peek: 'peek',
+  squeeze: 'squeeze',
+}
+
+windowEngine.onDodgeChange((state: DodgeState) => {
+  if (!isHatched.value || isFocusing.value || isFishing.value || autonomousLife.isAway) return
+  const anim = DODGE_ANIM_MAP[state]
+  if (anim) {
+    // Only override non-critical states
+    const noOverride = ['chatting', 'caring', 'happy', 'hatching', 'charging', 'unplugged',
+      'fullbattery', 'lowbattery', 'sweating', 'overloaded', 'cleaning',
+      'drinking', 'stretching', 'eyerest', 'celebrate', 'comforting', 'catch_orb',
+      'reading', 'tidying', 'daydreaming', 'napping', 'slacking', 'gaming', 'dancing', 'doodling']
+    if (!noOverride.includes(currentState.value)) {
+      currentState.value = anim
+    }
+  } else if (state === 'recover' || state === 'none') {
+    if (['dodge', 'peek', 'squeeze'].includes(currentState.value)) {
+      currentState.value = 'idle'
+    }
+  }
+})
+
+// ── Focus Prediction (V2 Track B) ──
+const focusPrediction = new FocusPredictionEngine()
+
+// ── Countdown Days (V2 Track C) ──
+const countdownSystem = new CountdownSystem()
+
+// ── Couple Nurture Mode (V2 Track C) ──
+const coupleEngine = new CoupleEngine()
+coupleEngine.onPartnerEvents((events) => {
+  if (!isHatched.value) return
+  for (const ev of events) {
+    if (ev.event_type === 'cheer') {
+      const msg = (ev.data as any)?.message || 'Partner cheers for you!'
+      mumbleText.value = `Partner: ${msg}`
+      mumbleVisible.value = true
+      currentState.value = 'happy'
+      setTimeout(() => { mumbleVisible.value = false }, 5000)
+    } else if (ev.event_type === 'focus_complete') {
+      const xp = (ev.data as any)?.xp || 0
+      mumbleText.value = `Partner completed a focus session! +${xp} XP`
+      mumbleVisible.value = true
+      currentState.value = 'celebrate'
+      setTimeout(() => { mumbleVisible.value = false }, 4000)
+    } else if (ev.event_type === 'level_up') {
+      const level = (ev.data as any)?.level || '?'
+      mumbleText.value = `Partner leveled up to Lv.${level}!`
+      mumbleVisible.value = true
+      currentState.value = 'celebrate'
+      setTimeout(() => { mumbleVisible.value = false }, 5000)
+    }
+  }
+})
+
+// ── Desktop Archaeologist ──
+const archaeologist = new DesktopArchaeologist({
+  onDeviation(msg) {
+    if (!isHatched.value || isFocusing.value || autonomousLife.isAway || mumbleVisible.value) return
+    mumbleText.value = msg
+    mumbleVisible.value = true
+    setTimeout(() => { mumbleVisible.value = false }, 5000)
+  },
+  onMissing(msg) {
+    if (!isHatched.value || isFocusing.value || autonomousLife.isAway || mumbleVisible.value) return
+    mumbleText.value = msg
+    mumbleVisible.value = true
+    setTimeout(() => { mumbleVisible.value = false }, 5000)
+  },
+  onWeeklySummary(msg) {
+    if (!isHatched.value || autonomousLife.isAway) return
+    mumbleText.value = msg
+    mumbleVisible.value = true
+    setTimeout(() => { mumbleVisible.value = false }, 8000)
+  },
+})
+let archaeologistTimer = 0
+
+// ── Screen Light Adaptation ──
+const darkMode = ref(false)
 
 // Mood system
 const showMoodCheckIn = ref(false)
@@ -375,7 +638,12 @@ async function pollStats() {
     const userStates = ['chatting', 'caring', 'hatching', 'happy', 'cleaning',
       'charging', 'unplugged', 'fullbattery', 'lowbattery', 'sipping',
       'drinking', 'stretching', 'eyerest',
-      'reading', 'tidying', 'daydreaming', 'napping', 'slacking', 'gaming', 'dancing', 'doodling']
+      'reading', 'tidying', 'daydreaming', 'napping', 'slacking', 'gaming', 'dancing', 'doodling',
+      'scene_coding', 'scene_writing', 'scene_design', 'scene_meeting',
+      'scene_fidget', 'scene_giveup', 'celebrate', 'comforting', 'catch_orb',
+      'fishing_idle', 'fishing_light', 'fishing_moderate', 'fishing_active',
+      'fishing_heavy', 'fishing_trophy', 'fishing_disconnect', 'fishing_upload',
+      'dodge', 'peek', 'squeeze']
     if (userStates.includes(s)) return
 
     // Memory → interactive character animations (lower priority than CPU)
@@ -496,7 +764,9 @@ async function pollInput() {
         if (currentState.value === 'sleepy') {
           currentState.value = 'wakeup'
         } else if (currentState.value === 'idle' || currentState.value === 'curious') {
-          currentState.value = 'working'
+          // If scene recognition has a specific state, use it; otherwise generic 'working'
+          const sceneAnim = SCENE_ANIM_MAP[currentScene.value]
+          currentState.value = sceneAnim || 'working'
         }
         clearTimeout(workingTimeout)
         // Don't auto-leave working during focus session
@@ -567,7 +837,12 @@ onMounted(async () => {
       'charging', 'unplugged', 'fullbattery', 'lowbattery', 'sipping',
       'sweating', 'overloaded', 'rummaging', 'crumpling',
       'drinking', 'stretching', 'eyerest',
-      'reading', 'tidying', 'daydreaming', 'napping', 'slacking', 'gaming', 'dancing', 'doodling']
+      'reading', 'tidying', 'daydreaming', 'napping', 'slacking', 'gaming', 'dancing', 'doodling',
+      'scene_coding', 'scene_writing', 'scene_design', 'scene_meeting',
+      'scene_fidget', 'scene_giveup', 'celebrate', 'comforting', 'catch_orb',
+      'fishing_idle', 'fishing_light', 'fishing_moderate', 'fishing_active',
+      'fishing_heavy', 'fishing_trophy', 'fishing_disconnect', 'fishing_upload',
+      'dodge', 'peek', 'squeeze']
     if (noInterrupt.includes(s)) return
     // Save current state and trigger sipping
     stateBeforeSip = s
@@ -599,6 +874,78 @@ onMounted(async () => {
     }, 30_000)
   }
 
+  // Scene Recognition: poll active window every 3 seconds
+  if (isHatched.value) {
+    sceneEngine.poll() // initial poll
+    sceneTimer = window.setInterval(() => {
+      if (!autonomousLife.isAway) {
+        sceneEngine.poll()
+      }
+    }, 3000)
+  }
+
+  // Clipboard Guardian: load history + poll every 500ms
+  if (isHatched.value) {
+    await clipboardGuardian.load()
+    clipboardCount.value = clipboardGuardian.count
+    clipboardTimer = window.setInterval(() => clipboardGuardian.poll(), 500)
+    // Clean expired items on startup (24h)
+    clipboardGuardian.cleanExpired()
+  }
+
+  // Network Fishing: poll every 2 seconds (engine handles enabled check)
+  if (isHatched.value) {
+    fishingTimer = window.setInterval(() => fishingEngine.poll(), 2000)
+  }
+
+  // Window Awareness: poll every 500ms
+  if (isHatched.value) {
+    await windowEngine.init()
+    windowTimer = window.setInterval(() => windowEngine.poll(), 500)
+  }
+
+  // Focus Prediction: load model + background retrain
+  if (isHatched.value) {
+    focusPrediction.load().then(() => focusPrediction.maybeRetrain())
+  }
+
+  // Couple Mode: load engine
+  if (isHatched.value) {
+    coupleEngine.load()
+  }
+
+  // Collectible engine: load discovered items
+  if (isHatched.value) {
+    collectibleEngine.load()
+  }
+
+  // Desktop Archaeologist: load patterns + check every 10 minutes
+  if (isHatched.value) {
+    await archaeologist.loadPatterns()
+    archaeologistTimer = window.setInterval(() => {
+      if (!autonomousLife.isAway && !isFocusing.value) {
+        // Feed current scene to archaeologist
+        archaeologist.updateCurrent(sceneEngine.state.app_name, sceneEngine.state.scene)
+        archaeologist.check()
+      }
+    }, 10 * 60 * 1000)
+  }
+
+  // Screen Light Adaptation: detect dark/light mode
+  initScreenLight()
+  darkMode.value = isDarkMode()
+  onDarkModeChange((dark) => {
+    darkMode.value = dark
+    // Show comment for unusual combos
+    const combo = getLightCombo(timePeriod.value as any)
+    const comment = getLightComment(combo)
+    if (comment && isHatched.value && !mumbleVisible.value) {
+      mumbleText.value = comment
+      mumbleVisible.value = true
+      setTimeout(() => { mumbleVisible.value = false }, 5000)
+    }
+  })
+
   // Mood check-in scheduler
   if (isHatched.value) {
     scheduleMoodCheckIn()
@@ -627,6 +974,38 @@ onMounted(async () => {
         currentState.value = 'caring'
         setTimeout(() => { mumbleVisible.value = false }, 6000)
       }, 3000)
+
+      // Countdown reminder
+      await countdownSystem.load()
+      const cdReminder = countdownSystem.getClosestReminder()
+      if (cdReminder) {
+        setTimeout(() => {
+          mumbleText.value = cdReminder
+          mumbleVisible.value = true
+          setTimeout(() => { mumbleVisible.value = false }, 5000)
+        }, 7000) // show 7s after morning greeting
+      }
+
+      // Event-day celebration
+      const todayEvents = countdownSystem.getTodayEvents()
+      if (todayEvents.length > 0) {
+        setTimeout(() => {
+          currentState.value = 'celebrate'
+          mumbleText.value = todayEvents.map(e => `${e.event.emoji} ${e.event.title}`).join(' | ')
+          mumbleVisible.value = true
+          setTimeout(() => { mumbleVisible.value = false }, 6000)
+        }, 13000)
+      }
+
+      // Monday weekly summary from archaeologist
+      const weeklySummary = archaeologist.checkWeeklySummary()
+      if (weeklySummary) {
+        setTimeout(() => {
+          mumbleText.value = weeklySummary
+          mumbleVisible.value = true
+          setTimeout(() => { mumbleVisible.value = false }, 8000)
+        }, 10000) // show 10s after morning greeting
+      }
     }
   }
 })
@@ -647,6 +1026,12 @@ onUnmounted(() => {
   noiseEngine.destroy()
   autonomousLife.stop()
   clearInterval(awayCheckTimer)
+  clearInterval(sceneTimer)
+  clearInterval(clipboardTimer)
+  clearInterval(fishingTimer)
+  clearInterval(windowTimer)
+  clearInterval(archaeologistTimer)
+  coupleEngine.stopPolling()
 })
 
 function onCanvasClick() {
@@ -676,6 +1061,21 @@ function onRadialSelect(item: string) {
       break
     case 'sound':
       showNoisePanel.value = true
+      break
+    case 'clipboard':
+      showClipboard.value = true
+      break
+    case 'fishing':
+      toggleFishing()
+      break
+    case 'journal':
+      showJournal.value = true
+      break
+    case 'analytics':
+      showAnalytics.value = true
+      break
+    case 'collectibles':
+      showCollectibles.value = true
       break
     case 'settings':
       showSettings.value = true
@@ -724,6 +1124,7 @@ async function handleXPGain(xp: number) {
       mumbleVisible.value = true
       currentState.value = 'happy'
       setTimeout(() => { mumbleVisible.value = false }, 5000)
+      coupleEngine.sendLevelUp(newLevel)
     }
   } catch (e) {
     console.error('[Growth] level check error:', e)
@@ -739,6 +1140,7 @@ async function onFocusComplete(xp: number, minutes: number) {
   mumbleText.value = `+${xp} XP!`
   mumbleVisible.value = true
   setTimeout(() => { mumbleVisible.value = false }, 3000)
+  coupleEngine.sendFocusComplete(xp)
   await handleXPGain(xp)
   // Record milestones (first focus + streaks)
   try {
@@ -751,6 +1153,10 @@ async function onFocusComplete(xp: number, minutes: number) {
     } else if (focusStats.streak === 7) {
       recordMilestone('streak_7', '7-day focus streak!')
     }
+    // Check focus collectible milestones
+    const totalXP = await invoke<number>('get_total_xp')
+    const totalMinutes = Math.round(totalXP / 2) * 60 // rough estimate from XP
+    collectibleEngine.checkFocusMilestones(totalMinutes, focusStats.streak)
   } catch {}
 }
 
@@ -823,6 +1229,21 @@ function onChatThinking(val: boolean) {
   // Could add a thinking animation later
 }
 
+function onSentimentHint(anim: string) {
+  if (anim === 'caring' || anim === 'happy') {
+    currentState.value = anim as any
+  }
+}
+
+function onOCApply(config: any) {
+  // OC config applied and saved - show happy reaction
+  showOCCreator.value = false
+  currentState.value = 'happy'
+  mumbleText.value = 'New look! Looking good~'
+  mumbleVisible.value = true
+  setTimeout(() => { mumbleVisible.value = false }, 4000)
+}
+
 const systemContext = computed(() => ({
   cpu: stats.value?.cpu_percent ?? 0,
   memory: stats.value?.memory_used_percent ?? 0,
@@ -882,6 +1303,26 @@ const stateLabel = computed(() => {
     gaming: '🎮 Gaming',
     dancing: '💃 Dancing!',
     doodling: '🎨 Doodling',
+    scene_coding: '💻 Coding',
+    scene_writing: '📝 Writing',
+    scene_design: '🎨 Designing',
+    scene_meeting: '🎤 In Meeting',
+    scene_fidget: '😬 Distracted...',
+    scene_giveup: '📖 Gave up on you~',
+    celebrate: '🎆 Celebration!',
+    comforting: '🫂 There there...',
+    catch_orb: '✨ Caught!',
+    fishing_idle: '🎣 Fishing...',
+    fishing_light: '🎣 Nibble...',
+    fishing_moderate: '🎣 Biting!',
+    fishing_active: '🎣 Big one!',
+    fishing_heavy: '🎣 HUGE!!',
+    fishing_trophy: '🐟 TROPHY FISH!',
+    fishing_disconnect: '🔌 No signal...',
+    fishing_upload: '🐦 Sending~',
+    dodge: '😨 Dodging!',
+    peek: '👀 Peeking...',
+    squeeze: '😱 Squished!',
   }
   return labels[currentState.value] || currentState.value
 })
@@ -900,6 +1341,8 @@ const stateLabel = computed(() => {
     <CompanionCanvas
       :state="currentState"
       :clutter-level="clutterLevel"
+      :is-dark-mode="darkMode"
+      :time-period="timePeriod"
       @click="onCanvasClick"
       @rightclick="onCanvasRightClick"
       @state-change="onStateChange"
@@ -950,9 +1393,45 @@ const stateLabel = computed(() => {
     <!-- Settings panel -->
     <SettingsPanel
       v-if="showSettings && isHatched"
+      :couple-engine="coupleEngine"
       @close="showSettings = false"
       @skin-changed="onSkinChanged"
       @name-changed="onNameChanged"
+      @open-oc-creator="showSettings = false; showOCCreator = true"
+    />
+
+    <!-- OC Character Creator -->
+    <OCCreatorPanel
+      v-if="showOCCreator && isHatched"
+      @close="showOCCreator = false"
+      @apply="onOCApply"
+    />
+
+    <!-- Clipboard backpack panel -->
+    <ClipboardPanel
+      v-if="showClipboard && isHatched"
+      :guardian="clipboardGuardian"
+      @close="showClipboard = false"
+      @paste="() => {}"
+    />
+
+    <!-- Analytics dashboard -->
+    <AnalyticsDashboard
+      v-if="showAnalytics && isHatched"
+      @close="showAnalytics = false"
+    />
+
+    <!-- Journal -->
+    <JournalPanel
+      v-if="showJournal && isHatched"
+      @close="showJournal = false"
+    />
+
+    <!-- Collectibles -->
+    <CollectiblesPanel
+      v-if="showCollectibles && isHatched"
+      :engine="collectibleEngine"
+      @close="showCollectibles = false"
     />
 
     <!-- Focus timer -->
@@ -972,8 +1451,10 @@ const stateLabel = computed(() => {
       :companion-name="companionName"
       :llm-ready="llmStatus === 'ready'"
       :system-context="systemContext"
+      :pattern-context="archaeologist.getPatternContext()"
       @close="onChatClose"
       @thinking="onChatThinking"
+      @sentiment-hint="onSentimentHint"
       @llm-status="(s: LLMStatus) => { llmStatus = s }"
     />
 
@@ -996,6 +1477,12 @@ const stateLabel = computed(() => {
     <div v-if="activeSounds.length > 0 && !isNaming" class="sound-indicator" @click="showNoisePanel = true">
       🎵 Playing
     </div>
+    <div v-if="clipboardCount > 0 && !isNaming" class="backpack-indicator" @click="showClipboard = true">
+      🎒 {{ clipboardCount }}
+    </div>
+    <div v-if="isFishing && fishingSpeedLabel && !isNaming" class="fishing-indicator">
+      {{ fishingSpeedLabel }}
+    </div>
 
     <div v-if="showDebug" class="debug-panel">
       <div class="debug-title">System Monitor</div>
@@ -1016,6 +1503,14 @@ const stateLabel = computed(() => {
       <div>Clutter: {{ clutterLevel }}/3</div>
       <div>Time: {{ timePeriod }}</div>
       <div>LLM: {{ llmStatus }}</div>
+      <div>Scene: {{ currentScene }}</div>
+      <div v-if="isFishing">Fish: {{ fishingEngine.info.state }} {{ fishingSpeedLabel }}</div>
+      <div v-if="windowEngine.state.dodgeState !== 'none'">Win: {{ windowEngine.state.dodgeState }} ({{ windowEngine.state.overlapPercent.toFixed(0) }}%)</div>
+      <div v-if="sceneEngine.state.distractionMinutes > 0">
+        Distract: {{ sceneEngine.state.distractionMinutes.toFixed(1) }}min (L{{ sceneEngine.state.escalationLevel }})
+      </div>
+      <div>Dark: {{ darkMode }} | {{ getLightCombo(timePeriod as any) }}</div>
+      <div v-if="archaeologist.dataReady">Arch: {{ archaeologist.totalDays }}d</div>
     </div>
   </div>
 </template>
@@ -1030,7 +1525,7 @@ html, body, #app {
 }
 
 .companion-window {
-  width: 200px;
+  width: 260px;
   height: 350px;
   display: flex;
   flex-direction: column;
@@ -1066,6 +1561,25 @@ html, body, #app {
 @keyframes pulse-sound {
   0%, 100% { opacity: 0.6; }
   50% { opacity: 1; }
+}
+
+.backpack-indicator {
+  color: rgba(139, 105, 20, 0.85);
+  font-size: 8px;
+  margin-top: 1px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.backpack-indicator:hover {
+  opacity: 1;
+  color: rgba(192, 160, 64, 1);
+}
+
+.fishing-indicator {
+  color: rgba(74, 144, 217, 0.7);
+  font-size: 7px;
+  margin-top: 1px;
+  letter-spacing: 0.3px;
 }
 
 /* ── Mumble Bubble ── */

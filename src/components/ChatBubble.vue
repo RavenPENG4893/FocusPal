@@ -4,12 +4,16 @@ import {
   chatStream, type ChatMessage, type LLMMode,
   getMode, setMode, getApiKey, setApiKey, initLLM, type LLMStatus,
 } from '../engine/LLMService'
+import { SentimentTracker } from '../engine/SentimentEngine'
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'thinking', val: boolean): void
   (e: 'llmStatus', status: LLMStatus): void
+  (e: 'sentimentHint', anim: string): void
 }>()
+
+const sentimentTracker = new SentimentTracker()
 
 export interface SystemContext {
   cpu: number
@@ -24,6 +28,7 @@ const props = defineProps<{
   companionName: string
   llmReady: boolean
   systemContext?: SystemContext
+  patternContext?: string
 }>()
 
 const userInput = ref('')
@@ -38,18 +43,38 @@ const showSettings = ref(false)
 
 function buildSystemPrompt(): string {
   const ctx = props.systemContext
-  let prompt = `You are ${props.companionName}, a cute desktop companion living on the user's computer. You are cheerful, caring, and helpful. You care about the user's wellbeing and productivity. Reply in the same language the user uses. Keep responses concise (2-3 sentences).`
+  const now = new Date()
+  const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+
+  let prompt = `/no_think
+你是FocusPal的伙伴角色，名叫${props.companionName}。你温柔、有点俏皮、真心关心用户。
+你能感知用户的电脑状态（CPU、电量、时间等）。
+规则：
+- 回复简短自然，控制在50字以内，像朋友聊天
+- 偶尔用emoji但不要太多
+- 不要说教，不要列清单
+- 不要说"作为AI"或"作为语言模型"
+- 关心用户但给空间，不要过度热情
+当前状态：
+- 时间：${timeStr}`
 
   if (ctx) {
-    prompt += `\n\nCurrent system state you can sense:`
-    prompt += `\n- CPU usage: ${ctx.cpu.toFixed(0)}%`
-    prompt += `\n- Memory usage: ${ctx.memory.toFixed(0)}%`
+    prompt += `\n- CPU：${ctx.cpu.toFixed(0)}%`
     if (ctx.battery >= 0) {
-      prompt += `\n- Battery: ${ctx.battery.toFixed(0)}%${ctx.isCharging ? ' (charging)' : ''}`
+      prompt += `\n- 电量：${ctx.battery.toFixed(0)}%（${ctx.isCharging ? '充电中' : '未充电'}）`
     }
-    prompt += `\n- Time of day: ${ctx.timePeriod}`
-    prompt += `\n- Your current mood/state: ${ctx.currentState}`
-    prompt += `\n\nUse this system awareness naturally — don't list stats, but weave them into your personality. For example, if CPU is high, you might mention feeling warm; if it's late night, suggest rest.`
+    prompt += `\n- 今日专注：${ctx.currentState}`
+    prompt += `\n- 时段：${ctx.timePeriod}`
+  }
+
+  if (props.patternContext) {
+    prompt += `\n${props.patternContext}`
+  }
+
+  // Sentiment context injection
+  const sentimentAddition = sentimentTracker.buildPromptAddition()
+  if (sentimentAddition) {
+    prompt += sentimentAddition
   }
 
   return prompt
@@ -78,6 +103,11 @@ async function send() {
   userInput.value = ''
   messages.value.push({ role: 'user', text })
   scrollToBottom()
+
+  // Track sentiment and emit animation hint
+  sentimentTracker.record(text)
+  const animHint = sentimentTracker.getAnimationHint()
+  if (animHint) emit('sentimentHint', animHint)
 
   if (!props.llmReady) {
     messages.value.push({ role: 'assistant', text: 'AI is still loading, wait a moment~' })

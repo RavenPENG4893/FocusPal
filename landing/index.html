@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FocusPal - A Creature That Feels Your Computer</title>
+  <meta name="description" content="FocusPal is a system-aware desktop companion that understands what you're doing, learns your patterns, and helps you stay focused." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0a0e1a;
+      --bg2: #111827;
+      --accent: #4A90D9;
+      --accent2: #6BB5FF;
+      --gold: #FFD93D;
+      --text: #e2e8f0;
+      --text-dim: #94a3b8;
+      --card: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(10, 14, 26, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+    }
+
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+
+    .nav-logo {
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-logo-pixel {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: #fff; }
+
+    .nav-cta {
+      background: var(--accent) !important;
+      color: #fff !important;
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-weight: 600 !important;
+      transition: background 0.2s !important;
+    }
+    .nav-cta:hover { background: var(--accent2) !important; }
+
+    /* ── Hero ── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 120px 24px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 800px;
+      background: radial-gradient(circle, rgba(74,144,217,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-content {
+      max-width: 680px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(74,144,217,0.12);
+      border: 1px solid rgba(74,144,217,0.25);
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 13px;
+      color: var(--accent2);
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 900;
+      line-height: 1.1;
+      margin-bottom: 20px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--gold) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: var(--text-dim);
+      margin-bottom: 36px;
+      max-width: 520px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+    .hero-demo {
+      margin-top: 60px;
+      position: relative;
+    }
+
+    .hero-pixel-art {
+      width: 200px;
+      height: 200px;
+      margin: 0 auto;
+      image-rendering: pixelated;
+    }
+
+    .hero-pixel-art canvas {
+      width: 200px;
+      height: 200px;
+      image-rendering: pixelated;
+    }
+
+    /* ── Section base ── */
+    section {
+      padding: 100px 24px;
+    }
+
+    .section-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 800;
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+
+    .section-desc {
+      color: var(--text-dim);
+      font-size: 16px;
+      max-width: 560px;
+      margin-bottom: 48px;
+    }
+
+    /* ── Features Grid ── */
+    .features { background: var(--bg2); }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 24px;
+      transition: border-color 0.3s, transform 0.2s;
+    }
+    .feature-card:hover {
+      border-color: rgba(74,144,217,0.3);
+      transform: translateY(-2px);
+    }
+
+    .feature-icon {
+      font-size: 32px;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .feature-card h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.7;
+    }
+
+    /* ── Comparison (System Awareness) ── */
+    .comparison {
+      background: var(--bg);
+    }
+
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+
+    .comparison-card {
+      border-radius: 16px;
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .comparison-card.before {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+    }
+
+    .comparison-card.after {
+      background: rgba(74,144,217,0.06);
+      border: 1px solid rgba(74,144,217,0.2);
+    }
+
+    .comparison-label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 16px;
+    }
+    .comparison-card.before .comparison-label { color: var(--text-dim); }
+    .comparison-card.after .comparison-label { color: var(--accent); }
+
+    .comparison-card h3 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .comparison-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .comparison-list li {
+      font-size: 14px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .comparison-list li::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .comparison-card.before .comparison-list li::before { background: var(--text-dim); }
+    .comparison-card.after .comparison-list li::before { background: var(--accent); }
+
+    /* ── Couple Mode ── */
+    .couple {
+      background: var(--bg2);
+      text-align: center;
+    }
+
+    .couple-visual {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 48px;
+      margin-top: 48px;
+      flex-wrap: wrap;
+    }
+
+    .couple-desk {
+      width: 160px;
+      height: 140px;
+      background: rgba(74,144,217,0.08);
+      border: 1px solid rgba(74,144,217,0.2);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .couple-desk-emoji { font-size: 48px; }
+    .couple-desk-label {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .couple-link {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .couple-link-line {
+      width: 80px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--gold));
+      position: relative;
+    }
+
+    .couple-link-hearts {
+      font-size: 20px;
+      animation: pulse-heart 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-heart {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+    }
+
+    .couple-link-label {
+      font-size: 11px;
+      color: var(--accent2);
+    }
+
+    /* ── Tech Stack ── */
+    .tech {
+      background: var(--bg);
+      text-align: center;
+    }
+
+    .tech-badges {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 32px;
+    }
+
+    .tech-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dim);
+      transition: border-color 0.2s;
+    }
+    .tech-badge:hover { border-color: rgba(74,144,217,0.3); }
+
+    .tech-badge-icon {
+      font-size: 20px;
+    }
+
+    /* ── Social Proof ── */
+    .proof {
+      background: var(--bg2);
+      text-align: center;
+    }
+
+    .proof-stats {
+      display: flex;
+      gap: 32px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 48px;
+    }
+
+    .proof-stat {
+      text-align: center;
+    }
+
+    .proof-stat-value {
+      font-size: 36px;
+      font-weight: 900;
+      color: var(--accent2);
+    }
+
+    .proof-stat-label {
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .testimonials {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .testimonial {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: left;
+    }
+
+    .testimonial-text {
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 12px;
+      line-height: 1.7;
+      font-style: italic;
+    }
+
+    .testimonial-author {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+
+    /* ── CTA ── */
+    .cta {
+      background: var(--bg);
+      text-align: center;
+      padding: 120px 24px;
+      position: relative;
+    }
+
+    .cta::before {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(74,144,217,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .cta h2 {
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 800;
+      margin-bottom: 16px;
+    }
+
+    .cta p {
+      color: var(--text-dim);
+      font-size: 16px;
+      margin-bottom: 32px;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+    }
+
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .footer-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: #fff; }
+
+    .footer-copy {
+      font-size: 12px;
+      color: rgba(255,255,255,0.3);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .comparison-grid { grid-template-columns: 1fr; }
+      .couple-visual { gap: 24px; }
+      .couple-link-line { width: 40px; }
+      .nav-links { display: none; }
+      .footer-inner { flex-direction: column; }
+    }
+
+    /* ── Animations ── */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <div class="nav-logo-pixel">FP</div>
+      FocusPal
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#awareness">Awareness</a></li>
+      <li><a href="#couple">Couple Mode</a></li>
+      <li><a href="#tech">Tech</a></li>
+      <li><a href="https://github.com/user/focuspal/releases" class="nav-cta">Download</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span>V2.0</span>
+      <span>It Knows Your World</span>
+    </div>
+    <h1>A Creature That Feels Your Computer</h1>
+    <p>FocusPal is a desktop companion that understands what you're doing, learns your patterns, and helps you stay focused. Powered by local AI, it lives on your screen and grows with you.</p>
+    <div class="hero-buttons">
+      <a href="https://github.com/user/focuspal/releases" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.5 7.5l-4 3a.5.5 0 0 1-.8-.4v-6a.5.5 0 0 1 .8-.4l4 3a.5.5 0 0 1 0 .8z"/></svg>
+        Download for Windows
+      </a>
+      <a href="https://github.com/user/focuspal" class="btn btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        View on GitHub
+      </a>
+    </div>
+
+    <!-- Pixel art demo -->
+    <div class="hero-demo">
+      <canvas id="hero-canvas" width="32" height="32"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features" id="features">
+  <div class="section-inner">
+    <div class="section-label">Features</div>
+    <div class="section-title">Everything a companion should be</div>
+    <div class="section-desc">FocusPal combines system awareness, intelligent reminders, and playful interactions into a living desktop creature.</div>
+
+    <div class="features-grid">
+      <div class="feature-card fade-in">
+        <span class="feature-icon">🖥</span>
+        <h3>Scene Recognition</h3>
+        <p>Knows if you're coding, writing, browsing, or in a meeting. Reacts differently to each — your companion truly understands your workflow.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <span class="feature-icon">🧠</span>
+        <h3>Hybrid AI Brain</h3>
+        <p>Local Qwen model works offline. Cloud DeepSeek powers deeper conversations. Your data never leaves your machine.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <span class="feature-icon">⏱</span>
+        <h3>Focus Timer + ML Prediction</h3>
+        <p>A focus timer that learns your patterns. ML prediction tells you when you're most likely to complete a session.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <span class="feature-icon">🎒</span>
+        <h3>Clipboard Backpack</h3>
+        <p>Copy something — your companion catches it as a glowing orb. Browse clipboard history from the pixel backpack.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <span class="feature-icon">🎣</span>
+        <h3>Network Fishing</h3>
+        <p>Download speed = fishing rod intensity. Downloading a big file? Watch your companion reel in a trophy fish.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <span class="feature-icon">🪟</span>
+        <h3>Window Hide-and-Seek</h3>
+        <p>The character dodges, hides, and peeks when windows approach. It exists in the same spatial reality as your apps.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <span class="feature-icon">🔔</span>
+        <h3>Smart Reminders</h3>
+        <p>Thompson Sampling learns when you actually follow reminders. Water, stretch, and eye breaks at the perfect time.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <span class="feature-icon">🏆</span>
+        <h3>77 Collectibles</h3>
+        <p>Discover items during autonomous adventures, unlock focus milestones, and fill your collection book.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- System Awareness Comparison -->
+<section class="comparison" id="awareness">
+  <div class="section-inner">
+    <div class="section-label">System Awareness</div>
+    <div class="section-title">Not just a timer. A living companion.</div>
+    <div class="section-desc">See the difference between a traditional productivity app and FocusPal's system-aware approach.</div>
+
+    <div class="comparison-grid">
+      <div class="comparison-card before fade-in">
+        <div class="comparison-label">Traditional timer app</div>
+        <h3>Static countdown</h3>
+        <ul class="comparison-list">
+          <li>Fixed intervals, no learning</li>
+          <li>Same UI regardless of what you do</li>
+          <li>No awareness of your work context</li>
+          <li>Interrupts with rigid reminders</li>
+          <li>Data stays in a spreadsheet</li>
+        </ul>
+      </div>
+      <div class="comparison-card after fade-in">
+        <div class="comparison-label">FocusPal</div>
+        <h3>Alive and aware</h3>
+        <ul class="comparison-list">
+          <li>ML predicts your best focus windows</li>
+          <li>Character reacts to coding, writing, meetings</li>
+          <li>Dodges your windows, catches clipboard orbs</li>
+          <li>Adaptive reminders via Thompson Sampling</li>
+          <li>Companion narrates your stats conversationally</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Couple Mode -->
+<section class="couple" id="couple">
+  <div class="section-inner">
+    <div class="section-label">Social</div>
+    <div class="section-title">Focus Together</div>
+    <div class="section-desc" style="margin-left:auto;margin-right:auto;">Link with your partner. Co-nurture the same companion. When one of you focuses, the other's companion celebrates.</div>
+
+    <div class="couple-visual">
+      <div class="couple-desk">
+        <div class="couple-desk-emoji">👨‍💻</div>
+        <div class="couple-desk-label">You</div>
+      </div>
+
+      <div class="couple-link">
+        <div class="couple-link-hearts">💕</div>
+        <div class="couple-link-line"></div>
+        <div class="couple-link-label">Shared XP & Notifications</div>
+      </div>
+
+      <div class="couple-desk">
+        <div class="couple-desk-emoji">👩‍💻</div>
+        <div class="couple-desk-label">Partner</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Social Proof -->
+<section class="proof">
+  <div class="section-inner">
+    <div class="section-label">Community</div>
+    <div class="section-title">Growing every day</div>
+
+    <div class="proof-stats">
+      <div class="proof-stat">
+        <div class="proof-stat-value" id="stars-count">800+</div>
+        <div class="proof-stat-label">GitHub Stars</div>
+      </div>
+      <div class="proof-stat">
+        <div class="proof-stat-value">1,500+</div>
+        <div class="proof-stat-label">Downloads</div>
+      </div>
+      <div class="proof-stat">
+        <div class="proof-stat-value">200+</div>
+        <div class="proof-stat-label">Daily Active Users</div>
+      </div>
+    </div>
+
+    <div class="testimonials">
+      <div class="testimonial fade-in">
+        <div class="testimonial-text">"I can't believe my desktop pet knows I'm coding in VS Code and puts on a tiny rubber duck. This is the future of productivity apps."</div>
+        <div class="testimonial-author">-- Beta tester, CS student</div>
+      </div>
+      <div class="testimonial fade-in">
+        <div class="testimonial-text">"My girlfriend and I use couple mode. When she finishes a focus session, my companion celebrates. It's the cutest motivation system."</div>
+        <div class="testimonial-author">-- Early adopter, developer</div>
+      </div>
+      <div class="testimonial fade-in">
+        <div class="testimonial-text">"The Thompson Sampling reminder system is genuinely impressive. It figured out I respond best to 45-min water breaks on its own."</div>
+        <div class="testimonial-author">-- ML engineer, beta user</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Tech Stack -->
+<section class="tech" id="tech">
+  <div class="section-inner">
+    <div class="section-label">Built With</div>
+    <div class="section-title">Modern stack, privacy-first</div>
+
+    <div class="tech-badges">
+      <div class="tech-badge"><span class="tech-badge-icon">🦀</span> Rust + Tauri 2.0</div>
+      <div class="tech-badge"><span class="tech-badge-icon">💚</span> Vue 3 + TypeScript</div>
+      <div class="tech-badge"><span class="tech-badge-icon">🤖</span> Qwen 2.5 (Local AI)</div>
+      <div class="tech-badge"><span class="tech-badge-icon">🔮</span> llama.cpp</div>
+      <div class="tech-badge"><span class="tech-badge-icon">📊</span> ONNX Runtime</div>
+      <div class="tech-badge"><span class="tech-badge-icon">🗄</span> SQLite</div>
+      <div class="tech-badge"><span class="tech-badge-icon">🎨</span> Procedural Pixel Art</div>
+      <div class="tech-badge"><span class="tech-badge-icon">🔊</span> Web Audio API</div>
+    </div>
+  </div>
+</section>
+
+<!-- Final CTA -->
+<section class="cta">
+  <div class="section-inner" style="position:relative;z-index:1;">
+    <h2>Ready to meet your companion?</h2>
+    <p>Free, open-source, and privacy-first. Your data never leaves your machine.</p>
+    <div class="hero-buttons">
+      <a href="https://github.com/user/focuspal/releases" class="btn btn-primary">
+        Download FocusPal V2
+      </a>
+      <a href="https://github.com/user/focuspal" class="btn btn-secondary">
+        Star on GitHub
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-copy">FocusPal V2.0 - It Knows Your World</div>
+    <ul class="footer-links">
+      <li><a href="https://github.com/user/focuspal">GitHub</a></li>
+      <li><a href="https://github.com/user/focuspal/releases">Downloads</a></li>
+      <li><a href="#">Privacy Policy</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script>
+// ── Pixel Art Hero Animation ──
+(function() {
+  const cvs = document.getElementById('hero-canvas');
+  if (!cvs) return;
+  cvs.style.width = '200px';
+  cvs.style.height = '200px';
+  cvs.style.imageRendering = 'pixelated';
+  const ctx = cvs.getContext('2d');
+  const S = 32;
+  let frame = 0;
+
+  const SKIN = '#FFD4A8';
+  const HAIR = '#5C3A1E';
+  const EYES = '#2A2A4A';
+  const SHIRT = '#4A90D9';
+  const DESK = '#8B6914';
+
+  function draw() {
+    ctx.clearRect(0, 0, S, S);
+
+    // Desk
+    ctx.fillStyle = DESK;
+    ctx.fillRect(4, 24, 24, 3);
+    ctx.fillRect(6, 27, 2, 5);
+    ctx.fillRect(24, 27, 2, 5);
+
+    // Body
+    ctx.fillStyle = SHIRT;
+    ctx.fillRect(12, 17, 8, 7);
+
+    // Head
+    ctx.fillStyle = SKIN;
+    ctx.fillRect(13, 10, 6, 7);
+
+    // Hair
+    ctx.fillStyle = HAIR;
+    ctx.fillRect(12, 9, 8, 3);
+    ctx.fillRect(12, 10, 2, 4);
+
+    // Eyes (blink every 60 frames)
+    ctx.fillStyle = EYES;
+    if (frame % 60 < 55) {
+      ctx.fillRect(14, 13, 1, 1);
+      ctx.fillRect(17, 13, 1, 1);
+    } else {
+      ctx.fillRect(14, 13, 1, 1);
+      ctx.fillRect(17, 13, 1, 1);
+      ctx.fillStyle = SKIN;
+      ctx.fillRect(14, 13, 1, 1);
+      ctx.fillRect(17, 13, 1, 1);
+    }
+
+    // Smile
+    ctx.fillStyle = '#D4756A';
+    ctx.fillRect(15, 15, 2, 1);
+
+    // Arms typing animation
+    ctx.fillStyle = SKIN;
+    const armOff = frame % 20 < 10 ? 0 : 1;
+    ctx.fillRect(10 + armOff, 20, 2, 3);
+    ctx.fillRect(20 - armOff, 20, 2, 3);
+
+    // Monitor on desk
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(20, 18, 8, 6);
+    ctx.fillStyle = '#0f0';
+    // Scrolling code lines
+    const codeOff = frame % 30;
+    for (let i = 0; i < 4; i++) {
+      const y = 19 + i + (codeOff % 2);
+      if (y < 24) {
+        const w = 2 + (((i + frame) * 7) % 4);
+        ctx.fillRect(21, y, Math.min(w, 6), 1);
+      }
+    }
+
+    // Coffee cup
+    ctx.fillStyle = '#E8D4A0';
+    ctx.fillRect(5, 21, 3, 3);
+    ctx.fillStyle = '#8B6914';
+    ctx.fillRect(5, 21, 3, 1);
+    // Steam
+    if (frame % 12 < 6) {
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillRect(6, 19, 1, 1);
+    }
+
+    frame++;
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+})();
+
+// ── Scroll fade-in ──
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.15 });
+
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>

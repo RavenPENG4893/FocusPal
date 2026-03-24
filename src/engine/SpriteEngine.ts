@@ -2,7 +2,7 @@
 // Coordinates AnimationStateMachine + PixelArtGenerator
 
 import { AnimationStateMachine } from './AnimationStateMachine'
-import { generateFrame, renderPixelGrid, drawDeskClutter } from './PixelArtGenerator'
+import { generateFrame, renderPixelGrid, drawDeskClutter, drawLightOverlay } from './PixelArtGenerator'
 import { drawSkinDeskItems } from './SkinSystem'
 import type { AnimationState } from './AnimationStateMachine'
 
@@ -13,6 +13,8 @@ export class SpriteEngine {
   private scale: number
   private running: boolean = false
   private _clutterLevel: number = 0
+  private _isDarkMode: boolean = false
+  private _timePeriod: string = 'morning'
 
   constructor(canvas: HTMLCanvasElement, scale: number = 3) {
     this.scale = scale
@@ -45,6 +47,14 @@ export class SpriteEngine {
     this._clutterLevel = level
   }
 
+  setDarkMode(v: boolean) {
+    this._isDarkMode = v
+  }
+
+  setTimePeriod(v: string) {
+    this._timePeriod = v
+  }
+
   start() {
     if (this.running) return
     this.running = true
@@ -56,7 +66,12 @@ export class SpriteEngine {
       const grid = generateFrame(state, this.stateMachine.frame)
       // Skip clutter overlay during interactive memory states (they draw their own props)
       const memAnimStates = ['sipping', 'crumpling', 'rummaging', 'drinking', 'stretching', 'eyerest',
-        'reading', 'tidying', 'napping', 'slacking', 'gaming', 'dancing', 'doodling']
+        'reading', 'tidying', 'napping', 'slacking', 'gaming', 'dancing', 'doodling',
+        'scene_coding', 'scene_writing', 'scene_design', 'scene_meeting',
+        'scene_fidget', 'scene_giveup', 'celebrate', 'comforting', 'catch_orb',
+        'fishing_idle', 'fishing_light', 'fishing_moderate', 'fishing_active',
+        'fishing_heavy', 'fishing_trophy', 'fishing_disconnect', 'fishing_upload',
+        'dodge', 'peek', 'squeeze']
       if (!memAnimStates.includes(state)) {
         // Draw skin-specific desk decorations
         drawSkinDeskItems(grid, this.stateMachine.frame)
@@ -64,6 +79,8 @@ export class SpriteEngine {
         if (this._clutterLevel > 0) {
           drawDeskClutter(grid, this._clutterLevel)
         }
+        // Screen light adaptation overlay (lamp, glasses)
+        drawLightOverlay(grid, this._isDarkMode, this._timePeriod, this.stateMachine.frame)
       }
       if (logOnce) {
         // Count non-null pixels to verify sprite data

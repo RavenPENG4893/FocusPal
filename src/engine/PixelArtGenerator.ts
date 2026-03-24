@@ -507,6 +507,72 @@ export function drawDeskClutter(grid: PixelData, level: number) {
   }
 }
 
+// ── Screen light adaptation overlays ──
+
+/** Draw a small desk lamp (left side of desk) */
+function drawDeskLamp(grid: PixelData, frame: number) {
+  // Lamp base (on desk surface)
+  drawPixel(grid, 2, 25, '#666666')
+  drawPixel(grid, 3, 25, '#666666')
+  // Lamp pole
+  drawPixel(grid, 2, 24, '#888888')
+  drawPixel(grid, 2, 23, '#888888')
+  // Lamp shade
+  drawPixel(grid, 1, 22, '#DDAA33')
+  drawPixel(grid, 2, 22, '#EECC44')
+  drawPixel(grid, 3, 22, '#DDAA33')
+  // Light glow (animated flicker)
+  const flicker = frame % 4 < 3
+  if (flicker) {
+    drawPixel(grid, 2, 23, '#FFEE88')
+    drawPixel(grid, 1, 23, '#FFE86640')
+    drawPixel(grid, 3, 23, '#FFE86640')
+  }
+}
+
+/** Draw reading glasses on character face */
+function drawReadingGlasses(grid: PixelData) {
+  // Small round glasses at eye level (y=13-14, x=13-18)
+  drawPixel(grid, 13, 13, '#886644')
+  drawPixel(grid, 14, 13, '#886644')
+  drawPixel(grid, 15, 13, '#886644') // bridge
+  drawPixel(grid, 16, 13, '#886644')
+  drawPixel(grid, 17, 13, '#886644')
+  // Lens tint
+  drawPixel(grid, 14, 14, '#CCBB9940')
+  drawPixel(grid, 16, 14, '#CCBB9940')
+}
+
+/** Draw sunglasses on character face */
+function drawSunglasses(grid: PixelData) {
+  // Wider dark sunglasses at eye level
+  drawPixel(grid, 12, 13, '#222222')
+  drawPixel(grid, 13, 13, '#111111')
+  drawPixel(grid, 14, 13, '#111111')
+  drawPixel(grid, 15, 13, '#333333') // bridge
+  drawPixel(grid, 16, 13, '#111111')
+  drawPixel(grid, 17, 13, '#111111')
+  drawPixel(grid, 18, 13, '#222222')
+}
+
+/** Draw light adaptation overlay based on dark mode + time period */
+export function drawLightOverlay(grid: PixelData, isDark: boolean, timePeriod: string, frame: number) {
+  const isNight = timePeriod === 'evening' || timePeriod === 'night' || timePeriod === 'late_night' || timePeriod === 'dusk'
+
+  if (isDark && isNight) {
+    // Dark mode + night: desk lamp with warm glow
+    drawDeskLamp(grid, frame)
+  } else if (isDark && !isNight) {
+    // Dark mode + daytime: reading glasses + lamp
+    drawDeskLamp(grid, frame)
+    drawReadingGlasses(grid)
+  } else if (!isDark && isNight) {
+    // Light mode + night: sunglasses (squinting from brightness)
+    drawSunglasses(grid)
+  }
+  // Light mode + daytime: normal, no overlay
+}
+
 // ── Day 12.5: Battery states ──
 
 function generateLowBattery(frame: number): PixelData {
@@ -1318,6 +1384,634 @@ function generateDoodling(frame: number): PixelData {
   return grid
 }
 
+// ── Scene Awareness Animations (V2) ──
+
+/** Coding scene: typing intensely with rubber duck on desk */
+function generateSceneCoding(frame: number): PixelData {
+  const grid = createGrid()
+  drawBase(grid)
+  // Intense typing - arms alternate fast
+  const armX = frame % 2 === 0 ? 8 : 10
+  drawRect(grid, armX, 22, 3, 2, PALETTE.skin)
+  drawRect(grid, 19 + (frame % 2), 22, 3, 2, PALETTE.skin)
+  // Keyboard
+  drawRect(grid, 8, 24, 16, 2, '#555555')
+  // Rubber duck on desk (right)
+  drawRect(grid, 4, 23, 3, 3, '#FFD93D') // body
+  drawRect(grid, 4, 22, 2, 1, '#FFD93D') // head
+  drawPixel(grid, 4, 22, '#333333')       // eye
+  drawPixel(grid, 3, 23, '#FF8C00')       // beak
+  // Monitor with green code text
+  drawRect(grid, 25, 16, 6, 10, '#1E1E1E')
+  drawPixel(grid, 26, 17, '#4EC9B0')
+  drawPixel(grid, 27, 17, '#4EC9B0')
+  drawPixel(grid, 29, 17, '#DCDCAA')
+  drawPixel(grid, 26, 19, '#569CD6')
+  drawPixel(grid, 27, 19, '#569CD6')
+  drawPixel(grid, 28, 19, '#9CDCFE')
+  drawPixel(grid, 26, 21, '#CE9178')
+  drawPixel(grid, 27, 21, '#CE9178')
+  // Focused eyes
+  drawRect(grid, 13, 11, 2, 2, PALETTE.eyeWhite)
+  drawRect(grid, 18, 11, 2, 2, PALETTE.eyeWhite)
+  drawPixel(grid, 14, 12, PALETTE.eyes)
+  drawPixel(grid, 19, 12, PALETTE.eyes)
+  drawPixel(grid, 15, 15, PALETTE.mouth)
+  return grid
+}
+
+/** Writing scene: reading/typing thoughtfully, papers on desk */
+function generateSceneWriting(frame: number): PixelData {
+  const grid = createGrid()
+  const headTilt = frame >= 2 ? 1 : 0
+  drawBase(grid, headTilt)
+  // Papers on desk
+  drawRect(grid, 3, 23, 6, 3, '#FFFFFF')
+  drawRect(grid, 4, 24, 4, 1, '#CCCCCC')
+  drawRect(grid, 5, 22, 5, 3, '#F8F8F0')
+  drawRect(grid, 6, 23, 3, 1, '#CCCCCC')
+  // Reference book
+  drawRect(grid, 22, 22, 4, 4, '#8B4513')
+  drawRect(grid, 23, 23, 2, 2, '#D2B48C')
+  // Glasses on face
+  drawRect(grid, 12, 10 + headTilt, 3, 3, 'rgba(100,100,100,0.4)')
+  drawRect(grid, 17, 10 + headTilt, 3, 3, 'rgba(100,100,100,0.4)')
+  drawPixel(grid, 15, 11 + headTilt, '#888888') // bridge
+  drawPixel(grid, 16, 11 + headTilt, '#888888')
+  // Eyes behind glasses
+  drawRect(grid, 13, 11 + headTilt, 2, 2, PALETTE.eyeWhite)
+  drawRect(grid, 18, 11 + headTilt, 2, 2, PALETTE.eyeWhite)
+  drawPixel(grid, 14, 12 + headTilt, PALETTE.eyes)
+  drawPixel(grid, 19, 12 + headTilt, PALETTE.eyes)
+  // Thoughtful mouth
+  drawRect(grid, 15, 15 + headTilt, 2, 1, PALETTE.mouth)
+  return grid
+}
+
+/** Design scene: painting on tiny easel */
+function generateSceneDesign(frame: number): PixelData {
+  const grid = createGrid()
+  drawBase(grid)
+  // Easel on desk
+  drawRect(grid, 3, 19, 7, 7, '#D2B48C') // canvas
+  drawRect(grid, 4, 20, 5, 5, '#FFFFFF')
+  drawPixel(grid, 3, 26, '#8B4513') // leg
+  drawPixel(grid, 9, 26, '#8B4513')
+  // Color swatches on canvas (progress by frame)
+  const colors = ['#FF4040', '#4A90D9', '#60C060', '#FFD93D']
+  for (let i = 0; i <= Math.min(frame, 3); i++) {
+    drawRect(grid, 5 + i, 21 + (i % 2), 1, 2, colors[i])
+  }
+  // Paint brush in hand
+  drawRect(grid, 8, 22, 1, 3, '#8B4513')
+  drawPixel(grid, 8, 22, colors[frame % 4])
+  drawRect(grid, 7, 23, 3, 2, PALETTE.skin) // hand
+  // Squinting eyes
+  drawRect(grid, 13, 12, 3, 1, PALETTE.eyes)
+  drawRect(grid, 18, 12, 3, 1, PALETTE.eyes)
+  drawPixel(grid, 15, 15, PALETTE.mouth)
+  return grid
+}
+
+/** Meeting scene: sitting up straight, taking notes */
+function generateSceneMeeting(frame: number): PixelData {
+  const grid = createGrid()
+  drawBase(grid, -1) // sitting up straighter
+  // Notepad on desk
+  drawRect(grid, 4, 22, 5, 4, '#FFFFCC')
+  // Pen marks appear
+  if (frame >= 1) drawPixel(grid, 5, 23, '#333333')
+  if (frame >= 2) { drawPixel(grid, 6, 24, '#333333'); drawPixel(grid, 7, 23, '#333333') }
+  if (frame >= 3) drawPixel(grid, 5, 24, '#333333')
+  // Pen in hand
+  drawRect(grid, 8, 22, 1, 3, '#333333')
+  drawRect(grid, 7, 23, 3, 2, PALETTE.skin)
+  // Monitor showing meeting
+  drawRect(grid, 25, 16, 6, 10, '#2C2C2C')
+  drawRect(grid, 26, 18, 2, 2, '#4A90D9') // person icon 1
+  drawRect(grid, 29, 18, 2, 2, '#60C060') // person icon 2
+  drawRect(grid, 26, 21, 2, 2, '#FFD93D') // person icon 3
+  // Attentive eyes
+  drawRect(grid, 13, 10, 2, 2, PALETTE.eyeWhite)
+  drawRect(grid, 18, 10, 2, 2, PALETTE.eyeWhite)
+  drawPixel(grid, 14, 11, PALETTE.eyes)
+  drawPixel(grid, 19, 11, PALETTE.eyes)
+  drawRect(grid, 15, 14, 2, 1, PALETTE.mouth)
+  return grid
+}
+
+/** Distraction fidget: tapping foot, glancing around */
+function generateSceneFidget(frame: number): PixelData {
+  const grid = createGrid()
+  const sway = frame % 2 === 0 ? 0 : 1
+  drawBase(grid, sway)
+  // Worried eyes (glancing left/right)
+  drawRect(grid, 13, 11 + sway, 2, 2, PALETTE.eyeWhite)
+  drawRect(grid, 18, 11 + sway, 2, 2, PALETTE.eyeWhite)
+  const eyeShift = frame % 4 < 2 ? 0 : 1
+  drawPixel(grid, 13 + eyeShift, 12 + sway, PALETTE.eyes)
+  drawPixel(grid, 18 + eyeShift, 12 + sway, PALETTE.eyes)
+  // Worried mouth
+  drawRect(grid, 14, 15 + sway, 3, 1, PALETTE.mouth)
+  drawPixel(grid, 14, 14 + sway, PALETTE.mouth)
+  drawPixel(grid, 16, 14 + sway, PALETTE.mouth) // wavy worry line
+  // Tapping foot
+  if (frame % 2 === 0) {
+    drawPixel(grid, 14, 27, PALETTE.body)
+  }
+  // Sweat drop
+  if (frame >= 2) {
+    drawPixel(grid, 22, 8 + sway, '#88CCFF')
+  }
+  return grid
+}
+
+/** Give up: lying down with a book, chill */
+function generateSceneGiveup(frame: number): PixelData {
+  const grid = createGrid()
+  // Desk
+  drawRect(grid, 2, 26, 28, 4, PALETTE.desk)
+  drawRect(grid, 2, 28, 28, 2, PALETTE.deskShadow)
+  // Character lying on desk
+  drawRect(grid, 6, 20, 20, 6, PALETTE.body)
+  drawRect(grid, 7, 21, 18, 4, PALETTE.bodyShadow)
+  // Head resting on arms
+  drawRect(grid, 5, 17, 10, 5, PALETTE.skin)
+  drawRect(grid, 6, 18, 8, 3, PALETTE.skin)
+  // Hair
+  drawRect(grid, 5, 16, 10, 2, PALETTE.hair)
+  // Closed content eyes
+  drawRect(grid, 7, 19, 2, 1, PALETTE.eyes)
+  drawRect(grid, 11, 19, 2, 1, PALETTE.eyes)
+  // Tiny smile
+  drawPixel(grid, 9, 20, PALETTE.mouth)
+  drawPixel(grid, 10, 20, PALETTE.mouth)
+  // Book propped up
+  const bookBob = frame % 2
+  drawRect(grid, 18, 18 + bookBob, 6, 5, '#8B4513')
+  drawRect(grid, 19, 19 + bookBob, 4, 3, '#F5DEB3')
+  drawPixel(grid, 20, 20 + bookBob, '#333333')
+  drawPixel(grid, 21, 20 + bookBob, '#333333')
+  return grid
+}
+
+/** Build success celebration: fireworks */
+function generateCelebrate(frame: number): PixelData {
+  const grid = createGrid()
+  const jump = frame < 4 ? -frame * 2 : -(7 - frame) * 2
+  drawBase(grid, Math.min(jump, 0))
+  const off = Math.min(jump, 0)
+  // Big grin
+  drawRect(grid, 13, 14 + off, 6, 2, PALETTE.mouth)
+  // Blush
+  drawRect(grid, 11, 13 + off, 2, 1, PALETTE.blush)
+  drawRect(grid, 20, 13 + off, 2, 1, PALETTE.blush)
+  // Fireworks/sparkles
+  const sparkleColors = ['#FF4040', '#FFD93D', '#4A90D9', '#60C060', '#FF69B4']
+  if (frame >= 1) {
+    for (let i = 0; i < 5; i++) {
+      const sx = 3 + (i * 6) + ((frame * 3 + i) % 4)
+      const sy = 2 + ((frame + i) % 3)
+      drawPixel(grid, sx, sy, sparkleColors[i])
+      drawPixel(grid, sx + 1, sy + 1, sparkleColors[(i + 2) % 5])
+    }
+  }
+  // Raised arms
+  if (frame >= 2 && frame <= 6) {
+    drawRect(grid, 7, 10 + off, 3, 2, PALETTE.skin)
+    drawRect(grid, 22, 10 + off, 3, 2, PALETTE.skin)
+  }
+  return grid
+}
+
+/** Build error: comforting animation */
+function generateComforting(frame: number): PixelData {
+  const grid = createGrid()
+  drawBase(grid)
+  // Caring eyes (looking at screen sympathetically)
+  drawRect(grid, 13, 11, 2, 2, PALETTE.eyeWhite)
+  drawRect(grid, 18, 11, 2, 2, PALETTE.eyeWhite)
+  drawPixel(grid, 14, 12, PALETTE.eyes)
+  drawPixel(grid, 19, 12, PALETTE.eyes)
+  // Worried eyebrows
+  drawPixel(grid, 12, 10, PALETTE.hair)
+  drawPixel(grid, 13, 9, PALETTE.hair)
+  drawPixel(grid, 20, 10, PALETTE.hair)
+  drawPixel(grid, 19, 9, PALETTE.hair)
+  // Concerned mouth
+  drawRect(grid, 14, 15, 4, 1, PALETTE.mouth)
+  // Pat animation: hand reaching toward screen
+  const pat = frame % 6
+  if (pat < 3) {
+    drawRect(grid, 22 + pat, 18, 3, 2, PALETTE.skin) // hand reaching
+  }
+  // Heart above head (comfort)
+  if (frame >= 3) {
+    drawPixel(grid, 7, 3, '#FF6B8A')
+    drawPixel(grid, 8, 2, '#FF6B8A')
+    drawPixel(grid, 9, 3, '#FF6B8A')
+    drawPixel(grid, 8, 4, '#FF6B8A')
+  }
+  // Monitor showing red error
+  drawRect(grid, 25, 16, 6, 10, '#1E1E1E')
+  drawPixel(grid, 26, 18, '#FF4040')
+  drawPixel(grid, 27, 18, '#FF4040')
+  drawPixel(grid, 28, 18, '#FF4040')
+  drawPixel(grid, 26, 20, '#FF4040')
+  return grid
+}
+
+/** Clipboard catch orb: character catches a glowing orb and stores it */
+function generateCatchOrb(frame: number): PixelData {
+  const grid = createGrid()
+  drawBase(grid)
+  // Orb descends from top, character catches it
+  const orbY = Math.min(2 + frame * 4, 16)
+  const orbX = 16
+  const caught = frame >= 3
+  // Glowing orb
+  if (!caught || frame === 3) {
+    const orbColor = frame % 2 === 0 ? '#88DDFF' : '#AAEEFF'
+    drawPixel(grid, orbX - 1, orbY, orbColor)
+    drawPixel(grid, orbX, orbY - 1, orbColor)
+    drawPixel(grid, orbX, orbY, '#FFFFFF')
+    drawPixel(grid, orbX, orbY + 1, orbColor)
+    drawPixel(grid, orbX + 1, orbY, orbColor)
+  }
+  // Arms reaching up (frames 0-2), then holding (frame 3), then tossing to desk (4-5)
+  if (frame <= 2) {
+    // Arms reaching up
+    drawRect(grid, 9, 10 + frame * 2, 3, 2, PALETTE.skin)
+    drawRect(grid, 20, 10 + frame * 2, 3, 2, PALETTE.skin)
+  } else if (frame === 3) {
+    // Holding orb
+    drawRect(grid, 13, 14, 6, 3, PALETTE.skin)
+  } else {
+    // Tossing toward backpack on desk (right side)
+    const tossX = 16 + (frame - 3) * 4
+    const tossY = 18 + (frame - 3) * 2
+    drawPixel(grid, tossX, tossY, '#88DDFF')
+    drawPixel(grid, tossX + 1, tossY, '#AAEEFF')
+    // Backpack on desk
+    drawRect(grid, 22, 22, 4, 4, '#8B6914')
+    drawRect(grid, 23, 23, 2, 2, '#A0822A')
+    drawPixel(grid, 24, 22, '#C0A040') // clasp
+  }
+  // Happy surprised expression
+  drawRect(grid, 13, 11, 2, 2, PALETTE.eyeWhite)
+  drawRect(grid, 18, 11, 2, 2, PALETTE.eyeWhite)
+  drawPixel(grid, 14, 11, PALETTE.eyes)
+  drawPixel(grid, 19, 11, PALETTE.eyes)
+  if (frame <= 3) {
+    drawRect(grid, 15, 14, 2, 2, PALETTE.mouth) // surprised O
+  } else {
+    drawRect(grid, 14, 14, 4, 1, PALETTE.mouth) // satisfied smile
+  }
+  return grid
+}
+
+// ── Network Fishing Animations (V2) ──
+
+/** Helper: draw fishing base (character sitting at desk edge with rod) */
+function drawFishingBase(grid: PixelData, rodBend: number = 0, eyeState: 'open' | 'half' | 'alert' = 'open') {
+  // Desk (character sits at right edge)
+  drawRect(grid, 2, 26, 28, 4, PALETTE.desk)
+  drawRect(grid, 2, 28, 28, 2, PALETTE.deskShadow)
+  // Body (sitting at edge, legs dangling)
+  drawRect(grid, 8, 18, 10, 8, PALETTE.body)
+  drawRect(grid, 9, 19, 8, 6, PALETTE.bodyShadow)
+  // Legs dangling off desk
+  drawRect(grid, 10, 26, 3, 3, PALETTE.body)
+  drawRect(grid, 15, 26, 3, 3, PALETTE.body)
+  // Head
+  drawRect(grid, 7, 6, 12, 12, PALETTE.skin)
+  drawRect(grid, 8, 7, 10, 10, PALETTE.skin)
+  // Hair
+  drawRect(grid, 7, 5, 12, 3, PALETTE.hair)
+  drawRect(grid, 6, 6, 2, 4, PALETTE.hair)
+  drawRect(grid, 18, 6, 2, 4, PALETTE.hair)
+  // Eyes
+  if (eyeState === 'half') {
+    drawRect(grid, 10, 12, 3, 1, PALETTE.eyes)
+    drawRect(grid, 15, 12, 3, 1, PALETTE.eyes)
+  } else if (eyeState === 'alert') {
+    drawRect(grid, 10, 11, 2, 2, PALETTE.eyeWhite)
+    drawRect(grid, 15, 11, 2, 2, PALETTE.eyeWhite)
+    drawPixel(grid, 11, 11, PALETTE.eyes) // looking right at rod
+    drawPixel(grid, 16, 11, PALETTE.eyes)
+  } else {
+    drawRect(grid, 10, 11, 2, 2, PALETTE.eyeWhite)
+    drawRect(grid, 15, 11, 2, 2, PALETTE.eyeWhite)
+    drawPixel(grid, 11, 12, PALETTE.eyes)
+    drawPixel(grid, 16, 12, PALETTE.eyes)
+  }
+  // Fishing rod (arm holding it)
+  drawRect(grid, 17, 16, 3, 2, PALETTE.skin) // hand
+  // Rod shaft
+  const rodTipY = 4 - rodBend
+  drawPixel(grid, 19, 16, '#8B6914')
+  drawPixel(grid, 20, 14, '#8B6914')
+  drawPixel(grid, 21, 12, '#8B6914')
+  drawPixel(grid, 22, 10, '#8B6914')
+  drawPixel(grid, 23, 8, '#8B6914')
+  drawPixel(grid, 24, 6 + rodBend, '#8B6914')
+  drawPixel(grid, 25, rodTipY + rodBend, '#8B6914')
+  // Fishing line
+  for (let y = rodTipY + rodBend + 1; y < 30; y++) {
+    drawPixel(grid, 26, y, '#AAAAAA')
+  }
+}
+
+/** Fishing idle: dozing off */
+function generateFishingIdle(frame: number): PixelData {
+  const grid = createGrid()
+  const nod = frame >= 2 ? 1 : 0
+  drawFishingBase(grid, 0, 'half')
+  // Mouth
+  drawPixel(grid, 13, 15 + nod, PALETTE.mouth)
+  // Zzz
+  if (frame % 4 >= 2) {
+    drawPixel(grid, 5, 4, PALETTE.zzz)
+    drawPixel(grid, 4, 3, PALETTE.zzz)
+  }
+  return grid
+}
+
+/** Fishing light: gentle bobbing */
+function generateFishingLight(frame: number): PixelData {
+  const grid = createGrid()
+  const bob = frame % 2
+  drawFishingBase(grid, bob, 'open')
+  drawRect(grid, 12, 15, 2, 1, PALETTE.mouth) // relaxed
+  // Small ripple at line end
+  if (frame % 2 === 0) {
+    drawPixel(grid, 25, 29, '#6699CC')
+    drawPixel(grid, 27, 29, '#6699CC')
+  }
+  return grid
+}
+
+/** Fishing moderate: alert, eyes on rod */
+function generateFishingModerate(frame: number): PixelData {
+  const grid = createGrid()
+  drawFishingBase(grid, 1 + (frame % 2), 'alert')
+  drawRect(grid, 12, 14, 3, 1, PALETTE.mouth) // focused
+  // Bigger ripple
+  drawPixel(grid, 24, 28 + (frame % 2), '#6699CC')
+  drawPixel(grid, 26, 29, '#6699CC')
+  drawPixel(grid, 28, 28 + (frame % 2), '#6699CC')
+  return grid
+}
+
+/** Fishing active: excited pulling, feet braced */
+function generateFishingActive(frame: number): PixelData {
+  const grid = createGrid()
+  drawFishingBase(grid, 2 + (frame % 2), 'alert')
+  // Excited mouth
+  drawRect(grid, 12, 14, 3, 2, PALETTE.mouth)
+  // Feet braced
+  drawRect(grid, 10, 26, 3, 2, PALETTE.body)
+  drawRect(grid, 15, 26, 3, 2, PALETTE.body)
+  // Splash effects
+  const splashY = 27 + (frame % 2)
+  drawPixel(grid, 24, splashY, '#88CCFF')
+  drawPixel(grid, 26, splashY - 1, '#AADDFF')
+  drawPixel(grid, 28, splashY, '#88CCFF')
+  // Sweat
+  if (frame >= 2) {
+    drawPixel(grid, 6, 8, '#88CCFF')
+  }
+  return grid
+}
+
+/** Fishing heavy: frantic reeling, sweat drops */
+function generateFishingHeavy(frame: number): PixelData {
+  const grid = createGrid()
+  const shake = frame % 2 === 0 ? 0 : 1
+  drawFishingBase(grid, 3 + shake, 'alert')
+  // Open mouth excited
+  drawRect(grid, 11, 13, 4, 3, PALETTE.mouth)
+  // Big splashes
+  for (let i = 0; i < 3; i++) {
+    const sx = 23 + i * 2 + (frame % 2)
+    const sy = 26 + ((frame + i) % 3)
+    drawPixel(grid, sx, sy, '#88CCFF')
+    drawPixel(grid, sx + 1, sy - 1, '#AADDFF')
+  }
+  // Multiple sweat drops
+  drawPixel(grid, 5, 7 + shake, '#88CCFF')
+  drawPixel(grid, 19, 7 + shake, '#88CCFF')
+  // Blush from effort
+  drawRect(grid, 8, 13, 2, 1, PALETTE.blush)
+  drawRect(grid, 17, 13, 2, 1, PALETTE.blush)
+  return grid
+}
+
+/** Fishing trophy: giant fish pulled out, celebration */
+function generateFishingTrophy(frame: number): PixelData {
+  const grid = createGrid()
+  // Desk
+  drawRect(grid, 2, 26, 28, 4, PALETTE.desk)
+  drawRect(grid, 2, 28, 28, 2, PALETTE.deskShadow)
+  // Character standing, holding up fish
+  drawRect(grid, 8, 14, 10, 12, PALETTE.body)
+  drawRect(grid, 9, 15, 8, 10, PALETTE.bodyShadow)
+  drawRect(grid, 7, 2, 12, 12, PALETTE.skin)
+  drawRect(grid, 7, 1, 12, 3, PALETTE.hair)
+  // Big happy eyes
+  drawRect(grid, 10, 7, 2, 2, PALETTE.eyeWhite)
+  drawRect(grid, 15, 7, 2, 2, PALETTE.eyeWhite)
+  drawPixel(grid, 11, 8, PALETTE.eyes)
+  drawPixel(grid, 16, 8, PALETTE.eyes)
+  drawRect(grid, 11, 10, 4, 2, PALETTE.mouth) // huge grin
+  // Giant fish held up
+  const fishY = 2 + Math.abs(2 - (frame % 4))
+  drawRect(grid, 20, fishY, 8, 4, '#4A90D9')     // body
+  drawRect(grid, 21, fishY + 1, 6, 2, '#6BB5FF')  // belly
+  drawPixel(grid, 27, fishY + 1, '#FFD93D')        // eye
+  drawRect(grid, 19, fishY + 1, 2, 2, '#3670A0')   // tail
+  // Sparkles
+  if (frame >= 2) {
+    const sparkleColors = ['#FFD93D', '#FF69B4', '#88DDFF']
+    for (let i = 0; i < 3; i++) {
+      drawPixel(grid, 3 + i * 8 + (frame % 3), 1 + ((frame + i) % 2), sparkleColors[i])
+    }
+  }
+  return grid
+}
+
+/** Fishing disconnect: confused with broken cable */
+function generateFishingDisconnect(frame: number): PixelData {
+  const grid = createGrid()
+  // Desk
+  drawRect(grid, 2, 26, 28, 4, PALETTE.desk)
+  drawRect(grid, 2, 28, 28, 2, PALETTE.deskShadow)
+  // Body
+  drawRect(grid, 11, 18, 10, 8, PALETTE.body)
+  drawRect(grid, 12, 19, 8, 6, PALETTE.bodyShadow)
+  // Head
+  drawRect(grid, 10, 6, 12, 12, PALETTE.skin)
+  drawRect(grid, 10, 5, 12, 3, PALETTE.hair)
+  drawRect(grid, 9, 6, 2, 4, PALETTE.hair)
+  drawRect(grid, 21, 6, 2, 4, PALETTE.hair)
+  // Confused eyes (spirals)
+  drawPixel(grid, 13, 11, PALETTE.eyes)
+  drawPixel(grid, 14, 12, PALETTE.eyes)
+  drawPixel(grid, 13, 13, PALETTE.eyes)
+  drawPixel(grid, 18, 11, PALETTE.eyes)
+  drawPixel(grid, 19, 12, PALETTE.eyes)
+  drawPixel(grid, 18, 13, PALETTE.eyes)
+  // Wavy confused mouth
+  drawPixel(grid, 14, 15, PALETTE.mouth)
+  drawPixel(grid, 15, 16, PALETTE.mouth)
+  drawPixel(grid, 16, 15, PALETTE.mouth)
+  drawPixel(grid, 17, 16, PALETTE.mouth)
+  // Holding broken cable
+  drawRect(grid, 20, 16, 3, 2, PALETTE.skin) // hand
+  drawRect(grid, 22, 14, 1, 3, '#666666') // cable
+  drawRect(grid, 23, 13, 2, 1, '#666666')
+  // Broken end sparks
+  if (frame % 2 === 0) {
+    drawPixel(grid, 24, 12, '#FFD93D')
+    drawPixel(grid, 25, 13, '#FF4040')
+  }
+  // Question mark
+  drawPixel(grid, 24, 5, '#FFFFFF')
+  drawPixel(grid, 25, 4, '#FFFFFF')
+  drawPixel(grid, 25, 3, '#FFFFFF')
+  drawPixel(grid, 24, 3, '#FFFFFF')
+  drawPixel(grid, 24, 7, '#FFFFFF')
+  return grid
+}
+
+/** Fishing upload: tying letter to a bird */
+function generateFishingUpload(frame: number): PixelData {
+  const grid = createGrid()
+  drawBase(grid)
+  // Arms tying
+  drawRect(grid, 8, 20, 3, 2, PALETTE.skin)
+  drawRect(grid, 20, 20, 3, 2, PALETTE.skin)
+  // Letter/package on desk
+  drawRect(grid, 10, 22, 6, 3, '#F5DEB3') // envelope
+  drawRect(grid, 11, 23, 4, 1, '#D2B48C')
+  drawPixel(grid, 13, 22, '#CC4444') // wax seal
+  // Bird
+  const birdY = frame < 2 ? 18 : 18 - (frame - 1) * 2
+  const birdX = frame < 2 ? 18 : 18 + (frame - 1) * 2
+  drawRect(grid, birdX, birdY, 3, 2, '#87CEEB') // body
+  drawPixel(grid, birdX + 2, birdY, '#FFD93D')   // beak
+  drawPixel(grid, birdX, birdY, '#333333')        // eye
+  // Wings flap
+  if (frame % 2 === 0) {
+    drawPixel(grid, birdX + 1, birdY - 1, '#87CEEB')
+  } else {
+    drawPixel(grid, birdX + 1, birdY + 2, '#87CEEB')
+  }
+  // Carry letter when flying
+  if (frame >= 2) {
+    drawRect(grid, birdX, birdY + 2, 2, 1, '#F5DEB3')
+  }
+  // Happy expression
+  drawRect(grid, 13, 11, 2, 2, PALETTE.eyeWhite)
+  drawRect(grid, 18, 11, 2, 2, PALETTE.eyeWhite)
+  drawPixel(grid, 14, 12, PALETTE.eyes)
+  drawPixel(grid, 19, 12, PALETTE.eyes)
+  drawRect(grid, 14, 14, 4, 1, PALETTE.mouth)
+  return grid
+}
+
+// ── Window Awareness Animations (V2) ──
+
+/** Dodge: character scooting sideways away from window */
+function generateDodge(frame: number): PixelData {
+  const grid = createGrid()
+  const sway = frame % 2 === 0 ? -2 : 0
+  // Desk
+  drawRect(grid, 2, 26, 28, 4, PALETTE.desk)
+  drawRect(grid, 2, 28, 28, 2, PALETTE.deskShadow)
+  // Body shifted
+  drawRect(grid, 11 + sway, 18, 10, 8, PALETTE.body)
+  drawRect(grid, 12 + sway, 19, 8, 6, PALETTE.bodyShadow)
+  // Head looking to the side
+  drawRect(grid, 10 + sway, 6, 12, 12, PALETTE.skin)
+  drawRect(grid, 10 + sway, 5, 12, 3, PALETTE.hair)
+  drawRect(grid, 9 + sway, 6, 2, 4, PALETTE.hair)
+  drawRect(grid, 21 + sway, 6, 2, 4, PALETTE.hair)
+  // Worried eyes looking sideways
+  drawRect(grid, 13 + sway, 11, 2, 2, PALETTE.eyeWhite)
+  drawRect(grid, 18 + sway, 11, 2, 2, PALETTE.eyeWhite)
+  drawPixel(grid, 13 + sway, 12, PALETTE.eyes) // looking left
+  drawPixel(grid, 18 + sway, 12, PALETTE.eyes)
+  // Worried mouth
+  drawRect(grid, 14 + sway, 15, 3, 1, PALETTE.mouth)
+  // Motion lines
+  const lineX = 24 + sway
+  if (frame % 2 === 0) {
+    drawPixel(grid, lineX, 10, '#AAAAAA')
+    drawPixel(grid, lineX, 14, '#AAAAAA')
+    drawPixel(grid, lineX + 1, 12, '#AAAAAA')
+  }
+  return grid
+}
+
+/** Peek: half body visible, curious expression peeking from edge */
+function generatePeek(frame: number): PixelData {
+  const grid = createGrid()
+  // Desk
+  drawRect(grid, 2, 26, 28, 4, PALETTE.desk)
+  drawRect(grid, 2, 28, 28, 2, PALETTE.deskShadow)
+  // Half body peeking from right edge
+  const peekX = 22 + (frame % 2)
+  // Body (half visible)
+  drawRect(grid, peekX, 18, 10, 8, PALETTE.body)
+  drawRect(grid, peekX + 1, 19, 8, 6, PALETTE.bodyShadow)
+  // Head peeking
+  drawRect(grid, peekX - 2, 8, 10, 10, PALETTE.skin)
+  // Hair
+  drawRect(grid, peekX - 2, 7, 10, 3, PALETTE.hair)
+  // One eye visible (curious)
+  drawRect(grid, peekX, 12, 2, 2, PALETTE.eyeWhite)
+  drawPixel(grid, peekX, 13, PALETTE.eyes) // looking out
+  // Tiny nervous smile
+  drawPixel(grid, peekX + 1, 16, PALETTE.mouth)
+  // Hand gripping edge
+  drawRect(grid, peekX - 1, 16, 2, 3, PALETTE.skin)
+  return grid
+}
+
+/** Squeeze: flattened character between windows, bug-eyed */
+function generateSqueeze(frame: number): PixelData {
+  const grid = createGrid()
+  // Desk
+  drawRect(grid, 2, 26, 28, 4, PALETTE.desk)
+  drawRect(grid, 2, 28, 28, 2, PALETTE.deskShadow)
+  // Squished body (narrow)
+  const squish = frame % 2
+  drawRect(grid, 14 - squish, 16, 4 + squish * 2, 10, PALETTE.body)
+  drawRect(grid, 14, 17, 3, 8, PALETTE.bodyShadow)
+  // Squished head (tall and narrow)
+  drawRect(grid, 13 - squish, 4, 6 + squish * 2, 12, PALETTE.skin)
+  // Hair
+  drawRect(grid, 13 - squish, 3, 6 + squish * 2, 3, PALETTE.hair)
+  // Bug eyes (wide, panicked)
+  drawRect(grid, 13, 8, 3, 3, PALETTE.eyeWhite)
+  drawRect(grid, 17, 8, 3, 3, PALETTE.eyeWhite)
+  drawPixel(grid, 14, 9, PALETTE.eyes)
+  drawPixel(grid, 18, 9, PALETTE.eyes)
+  // Small pupils (panic)
+  drawPixel(grid, 14, 10, PALETTE.eyes)
+  drawPixel(grid, 18, 10, PALETTE.eyes)
+  // Open panicked mouth
+  drawRect(grid, 14, 13, 4, 2, PALETTE.mouth)
+  // Sweat drops
+  drawPixel(grid, 11, 6 + squish, '#88CCFF')
+  drawPixel(grid, 21, 7 + squish, '#88CCFF')
+  // "Wall" indicators on sides
+  drawRect(grid, 0, 4, 2, 22, '#666666')
+  drawRect(grid, 30, 4, 2, 22, '#666666')
+  return grid
+}
+
 const GENERATORS: Record<string, (frame: number) => PixelData> = {
   idle: generateIdle,
   working: generateWorking,
@@ -1351,6 +2045,29 @@ const GENERATORS: Record<string, (frame: number) => PixelData> = {
   gaming: generateGaming,
   dancing: generateDancing,
   doodling: generateDoodling,
+  // Scene awareness (V2)
+  scene_coding: generateSceneCoding,
+  scene_writing: generateSceneWriting,
+  scene_design: generateSceneDesign,
+  scene_meeting: generateSceneMeeting,
+  scene_fidget: generateSceneFidget,
+  scene_giveup: generateSceneGiveup,
+  celebrate: generateCelebrate,
+  comforting: generateComforting,
+  catch_orb: generateCatchOrb,
+  // Network fishing
+  fishing_idle: generateFishingIdle,
+  fishing_light: generateFishingLight,
+  fishing_moderate: generateFishingModerate,
+  fishing_active: generateFishingActive,
+  fishing_heavy: generateFishingHeavy,
+  fishing_trophy: generateFishingTrophy,
+  fishing_disconnect: generateFishingDisconnect,
+  fishing_upload: generateFishingUpload,
+  // Window awareness
+  dodge: generateDodge,
+  peek: generatePeek,
+  squeeze: generateSqueeze,
 }
 
 // Render a pixel grid to an offscreen canvas and return ImageData

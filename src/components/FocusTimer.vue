@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { FocusPredictionEngine, type FocusPrediction } from '../engine/FocusPrediction'
 
 const emit = defineEmits<{
   (e: 'close'): void
@@ -31,6 +32,22 @@ let lastActivityTime = Date.now()
 // Stats
 const focusedMinutes = ref(0)  // actual minutes focused (for XP)
 const earnedXP = ref(0)
+
+// ML Focus Prediction
+const predictionEngine = new FocusPredictionEngine()
+const prediction = ref<FocusPrediction | null>(null)
+const showPrediction = ref(false)
+
+async function updatePrediction(durationMin: number) {
+  try {
+    const features = await predictionEngine.gatherFeatures(durationMin)
+    prediction.value = predictionEngine.predict(features)
+    showPrediction.value = true
+  } catch {
+    prediction.value = null
+    showPrediction.value = false
+  }
+}
 
 // Stats from SQLite
 interface FocusStats {
@@ -65,7 +82,12 @@ async function saveFocusSession(durationMin: number, actualMin: number, xp: numb
   }
 }
 
-onMounted(() => { refreshStats() })
+onMounted(async () => {
+  await refreshStats()
+  await predictionEngine.load()
+  predictionEngine.maybeRetrain() // background retrain if needed
+  updatePrediction(25) // default prediction for 25-min preset
+})
 
 // Computed
 const progress = computed(() => {
@@ -123,9 +145,12 @@ function startFocus(minutes: number, breakMin: number) {
   phase.value = 'focus'
   focusedMinutes.value = 0
   lastActivityTime = Date.now()
+  showPrediction.value = false
   emit('start')
   startTicking()
   startIdleCheck()
+  // Record session start time for "minutes since last" feature
+  invoke('config_set', { key: '_last_focus_ts', value: String(Date.now()) }).catch(() => {})
 }
 
 function startTicking() {
@@ -255,11 +280,20 @@ onUnmounted(() => {
 
     <!-- Preset selection -->
     <div v-if="phase === 'select'" class="focus-select">
+      <!-- ML Prediction hint -->
+      <div v-if="showPrediction && prediction" class="prediction-hint" :style="{ borderColor: prediction.color }">
+        <div class="prediction-dot" :style="{ background: prediction.color }"></div>
+        <div class="prediction-text">{{ prediction.message }}</div>
+        <div class="prediction-prob">{{ Math.round(prediction.probability * 100) }}%</div>
+      </div>
+
       <button
         v-for="p in presets"
         :key="p.focus"
         class="preset-btn"
+        :style="prediction && showPrediction ? { boxShadow: `0 0 8px ${prediction.color}40` } : {}"
         @click="startFocus(p.focus, p.breakTime)"
+        @mouseenter="updatePrediction(p.focus)"
       >
         {{ p.label }}
       </button>
@@ -271,6 +305,7 @@ onUnmounted(() => {
           max="120"
           step="5"
           class="custom-input"
+          @change="updatePrediction(customMin)"
         />
         <span class="custom-unit">min</span>
         <button class="preset-btn custom-start" @click="startFocus(customMin, Math.floor(customMin / 5))">
@@ -542,5 +577,46 @@ onUnmounted(() => {
 
 .ctrl-btn.abort:hover {
   background: rgba(217, 74, 74, 0.65);
+}
+
+/* ML Prediction */
+.prediction-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid;
+  background: rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 160px;
+  animation: pred-in 0.3s ease-out;
+}
+@keyframes pred-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.prediction-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: pred-glow 2s ease-in-out infinite;
+}
+@keyframes pred-glow {
+  0%, 100% { opacity: 0.6; box-shadow: none; }
+  50% { opacity: 1; box-shadow: 0 0 6px currentColor; }
+}
+.prediction-text {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.3;
+  flex: 1;
+}
+.prediction-prob {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.8);
+  flex-shrink: 0;
 }
 </style>

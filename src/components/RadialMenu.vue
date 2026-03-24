@@ -9,7 +9,12 @@ const items = [
   { id: 'chat', icon: '💬', label: 'Chat' },
   { id: 'mood', icon: '😊', label: 'Mood' },
   { id: 'growth', icon: '⭐', label: 'Growth' },
+  { id: 'journal', icon: '📖', label: 'Journal' },
+  { id: 'analytics', icon: '📊', label: 'Stats' },
+  { id: 'collectibles', icon: '🏆', label: 'Collect' },
   { id: 'sound', icon: '🎵', label: 'Sound' },
+  { id: 'clipboard', icon: '🎒', label: 'Backpack' },
+  { id: 'fishing', icon: '🎣', label: 'Fishing' },
   { id: 'settings', icon: '⚙️', label: 'Settings' },
 ]
 
@@ -17,7 +22,7 @@ const items = [
 function getStyle(index: number) {
   const total = items.length
   const angle = (index / total) * 2 * Math.PI - Math.PI / 2 // start from top
-  const radius = 78
+  const radius = 88
   const x = Math.cos(angle) * radius
   const y = Math.sin(angle) * radius
   return {
